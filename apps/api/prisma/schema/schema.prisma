@@ -1,0 +1,948 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Division {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+
+  districts      District[]
+  donors         Donor[]
+  bloodDonations BloodDonation[]
+  bloodRequests  BloodRequest[]
+  events         Event[]
+
+  @@map("divisions")
+}
+
+model District {
+  id         String    @id @default(uuid())
+  name       String
+  divisionId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  isDeleted  Boolean   @default(false)
+
+  division       Division        @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazilas       Upazila[]
+  donors         Donor[]
+  bloodDonations BloodDonation[]
+  bloodRequests  BloodRequest[]
+  events         Event[]
+
+  @@index([divisionId])
+  @@map("districts")
+}
+
+model Upazila {
+  id         String    @id @default(uuid())
+  name       String
+  districtId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  isDeleted  Boolean   @default(false)
+
+  district          District                       @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  donors            Donor[]
+  donorAffiliations DonorOrganizationAffiliation[]
+  bloodDonations    BloodDonation[]
+  bloodRequests     BloodRequest[]
+  events            Event[]
+
+  @@index([districtId])
+  @@map("upazilas")
+}
+
+model BloodGroup {
+  id        String    @id @default(uuid())
+  groupName String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+
+  donors       Donor[]
+  inventory    OrganizationBloodInventory[]
+  requests     BloodRequest[]
+  appointments DonationAppointment[]
+
+  @@map("bloodGroups")
+}
+
+model Donor {
+  id                       String             @id @default(uuid())
+  fullName                 String
+  phone                    String?            @unique
+  email                    String             @unique
+  password                 String
+  bloodGroupId             String
+  role                     Role               @default(DONOR)
+  divisionId               String?
+  districtId               String?
+  upazilaId                String?
+  lastDonationDate         DateTime?
+  // Set alongside lastDonationDate when a donation is VERIFIED (donationDate + 3 months).
+  // Used to automatically flip availabilityStatus back to AVAILABLE once the
+  // donor's cooldown period has elapsed (see jobs/donorAvailabilitySweeper.ts).
+  nextEligibleDonationDate DateTime?
+  availabilityStatus       AvailabilityStatus @default(AVAILABLE)
+  profilePhoto             String?
+  bio                      String?
+  referenceId              String?
+  // Added: slug for public donor profile URLs
+  slug                     String?            @unique
+  accountStatus            AccountStatus      @default(ACTIVE)
+  profileStatus            DonorProfileStatus @default(INCOMPLETE)
+  profileCompletedAt       DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  deletedAt                DateTime?
+  isDeleted                Boolean            @default(false)
+  isVerified               Boolean            @default(false)
+  verifiedAt               DateTime?
+  phoneVerifiedAt          DateTime?
+  notifyInApp              Boolean            @default(true)
+  notifySms                Boolean            @default(true)
+  notifyEmail              Boolean            @default(false)
+
+  bloodGroup BloodGroup @relation(fields: [bloodGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  division   Division?  @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district   District?  @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila    Upazila?   @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  reference      Donor?  @relation("DonorReference", fields: [referenceId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  referredDonors Donor[] @relation("DonorReference")
+
+  donations                      BloodDonation[]                @relation("DonorDonations")
+  verifiedDonations              BloodDonation[]                @relation("DonorVerifications")
+  organization                   OrganizationMember?
+  appointedGovernanceMemberships OrganizationMember[]           @relation("MembershipAppointedBy")
+  affiliations                   DonorOrganizationAffiliation[]
+  acceptedRequests               BloodRequest[]                 @relation("BloodRequestAcceptedBy")
+  completedRequests              BloodRequest[]                 @relation("BloodRequestCompletedBy")
+  rejectedRequests               BloodRequest[]                 @relation("BloodRequestRejectedBy")
+  posts                          Post[]
+  eventParticipation             EventParticipant[]
+  notifications                  Notification[]
+  reports                        Report[]
+  blogs                          Blog[]
+  postComments                   PostComment[]
+  postLikes                      PostLike[]
+  donorAlerts                    BloodRequestDonorAlert[]
+  appointments                   DonationAppointment[]
+  requestAssignments             RequestAssignment[]            @relation("DonorRequestAssignments")
+  assignedRequests               RequestAssignment[]            @relation("RequestAssignmentAssignedBy")
+  cancelledRequests              BloodRequest[]                 @relation("BloodRequestCancelledBy")
+  statusChanges                  BloodRequestStatusHistory[]    @relation("BloodRequestStatusChangedBy")
+  achievements                   DonorAchievement[]
+
+  @@index([bloodGroupId])
+  @@index([districtId])
+  @@index([upazilaId])
+  @@index([availabilityStatus])
+  @@index([accountStatus])
+  @@index([nextEligibleDonationDate])
+  // Composite index matching the donor-matching hot path (dispatchBloodRequestDonorAlerts):
+  // filters by district + upazila + blood group + account/availability status together on
+  // every urgent request. The single-column indexes above force Postgres to intersect up to
+  // five separate indexes; this lets it satisfy the whole predicate from one index scan.
+  @@index([districtId, upazilaId, bloodGroupId, accountStatus, availabilityStatus])
+  @@map("donors")
+}
+
+model BloodDonation {
+  id                  String             @id @default(uuid())
+  donorId             String
+  recipientName       String?
+  hospitalName        String
+  divisionId          String
+  districtId          String
+  upazilaId           String
+  organizationId      String?
+  // Optional link to the RequestAssignment this donation fulfills, so an
+  // "accepted" assignment (RequestAssignmentStatus.ACCEPTED) can be
+  // distinguished from the donor having actually donated (a VERIFIED
+  // BloodDonation linked back to that assignment).
+  requestAssignmentId String?            @unique
+  donationDate        DateTime
+  verificationStatus  VerificationStatus
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  notes               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+  isDeleted           Boolean            @default(false)
+
+  donor             Donor              @relation("DonorDonations", fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  verifiedByDonor   Donor?             @relation("DonorVerifications", fields: [verifiedBy], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  division          Division           @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district          District           @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila           Upazila            @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  requestAssignment RequestAssignment? @relation(fields: [requestAssignmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  post              Post?
+
+  @@index([donorId])
+  @@index([verificationStatus])
+  @@index([divisionId])
+  @@index([districtId])
+  @@index([organizationId])
+  @@index([requestAssignmentId])
+  @@index([createdAt])
+  @@map("bloodDonations")
+}
+
+model Organization {
+  id                 String             @id @default(uuid())
+  name               String
+  phone              String
+  email              String?            @unique
+  address            String
+  divisionId         String
+  districtId         String
+  upazilaId          String
+  level              OrganizationLevel  @default(UPAZILA)
+  parentId           String?
+  canonical          Boolean            @default(false)
+  description        String?
+  logo               String?
+  // Added: matches frontend OrganizationNode.type (e.g. "Main Hub", "Regional Branch")
+  type               String?
+  // Added: matches frontend OrganizationNode.status
+  organizationStatus OrganizationStatus @default(ACTIVE)
+  verificationStatus VerificationStatus
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+  isDeleted          Boolean            @default(false)
+
+  members                   OrganizationMember[]
+  donorAffiliations         DonorOrganizationAffiliation[]
+  parent                    Organization?                  @relation("OrganizationHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children                  Organization[]                 @relation("OrganizationHierarchy")
+  handledBloodRequests      BloodRequest[]                 @relation("HandledBloodRequests")
+  inventory                 OrganizationBloodInventory[]
+  events                    Event[]
+  bloodRequestNotifications BloodRequestNotification[]
+  bloodRequests             BloodRequest[]
+  bloodDonations            BloodDonation[]
+  posts                     Post[]
+  galleries                 Gallery[]
+  appointments              DonationAppointment[]
+
+  @@index([districtId])
+  @@index([level])
+  @@index([parentId])
+  @@index([canonical])
+  @@index([verificationStatus])
+  @@index([organizationStatus])
+  @@map("organizations")
+}
+
+model OrganizationPosition {
+  id             String         @id @default(uuid())
+  positionName   String
+  positionOrder  Int
+  // Added: matches frontend positionsService.ts level field
+  level          PositionLevel  @default(SUPPORT)
+  // Added: matches frontend positionsService.ts status field
+  positionStatus PositionStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean        @default(false)
+
+  members OrganizationMember[]
+
+  @@map("organizationPositions")
+}
+
+model OrganizationMember {
+  id             String                   @id @default(uuid())
+  organizationId String?
+  donorId        String                   @unique
+  // Fixed: removed @unique so multiple members can hold the same position type
+  positionId     String
+  category       GovernanceCategory       @default(COMMITTEE)
+  appointedById  String?
+  joinedAt       DateTime                 @default(now())
+  activatedAt    DateTime?
+  endedAt        DateTime?
+  updatedAt      DateTime                 @updatedAt
+  status         OrganizationMemberStatus @default(PENDING)
+  deletedAt      DateTime?
+  isDeleted      Boolean                  @default(false)
+
+  organization Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor        Donor                @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  appointedBy  Donor?               @relation("MembershipAppointedBy", fields: [appointedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  position     OrganizationPosition @relation(fields: [positionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([organizationId, donorId])
+  @@index([organizationId])
+  @@index([category])
+  @@index([appointedById])
+  @@index([positionId])
+  @@map("OrganizationMembers")
+}
+
+model OrganizationBloodInventory {
+  id             String    @id @default(uuid())
+  organizationId String
+  bloodGroupId   String
+  availableUnits Int
+  lastUpdated    DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean   @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bloodGroup   BloodGroup   @relation(fields: [bloodGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([organizationId, bloodGroupId])
+  @@index([organizationId])
+  @@index([bloodGroupId])
+  @@map("organizationBloodInventories")
+}
+
+model BloodRequest {
+  id                      String             @id @default(uuid())
+  referenceCode           String             @unique @default(cuid())
+  requesterName           String
+  requesterPhone          String
+  bloodGroupId            String
+  hospitalName            String
+  divisionId              String
+  districtId              String
+  upazilaId               String
+  organizationId          String?
+  handledByOrganizationId String?
+  acceptedById            String?
+  acceptedAt              DateTime?
+  donorFoundAt            DateTime?
+  fulfilledAt             DateTime?
+  handoverCompletedAt     DateTime?
+  completedById           String?
+  rejectedAt              DateTime?
+  rejectedById            String?
+  cancellationReason      String?
+  rejectionReason         String?
+  version                 Int                @default(1)
+  requiredUnits           Int
+  // Added: matches frontend BloodRequest.type ("URGENT" | "GENERAL")
+  requestType             BloodRequestType   @default(GENERAL)
+  message                 String?
+  status                  BloodRequestStatus @default(SUBMITTED)
+  confirmedAt             DateTime?
+  cancelledAt             DateTime?
+  cancelledById           String?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  deletedAt               DateTime?
+  isDeleted               Boolean            @default(false)
+
+  bloodGroup            BloodGroup                  @relation(fields: [bloodGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  division              Division                    @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district              District                    @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila               Upazila                     @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  organization          Organization?               @relation(fields: [organizationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  handledByOrganization Organization?               @relation("HandledBloodRequests", fields: [handledByOrganizationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  acceptedBy            Donor?                      @relation("BloodRequestAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  completedBy           Donor?                      @relation("BloodRequestCompletedBy", fields: [completedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  rejectedBy            Donor?                      @relation("BloodRequestRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  cancelledBy           Donor?                      @relation("BloodRequestCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  notifications         BloodRequestNotification[]
+  donorAlerts           BloodRequestDonorAlert[]
+  assignments           RequestAssignment[]
+  statusHistory         BloodRequestStatusHistory[]
+
+  @@index([bloodGroupId])
+  @@index([districtId])
+  @@index([organizationId])
+  @@index([handledByOrganizationId])
+  @@index([status])
+  @@index([requestType])
+  @@index([createdAt])
+  @@map("BloodRequests")
+}
+
+model BloodRequestNotification {
+  id             String    @id @default(uuid())
+  requestId      String
+  organizationId String
+  smsSent        Boolean
+  notifiedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean   @default(false)
+
+  request      BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([requestId, organizationId])
+  @@index([requestId])
+  @@index([organizationId])
+  @@map("bloodRequestNotifications")
+}
+
+model BloodRequestDonorAlert {
+  id         String   @id @default(uuid())
+  requestId  String
+  donorId    String
+  smsSent    Boolean  @default(false)
+  notifiedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  request BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor   Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([requestId, donorId])
+  @@index([requestId])
+  @@index([donorId])
+  @@map("bloodRequestDonorAlerts")
+}
+
+model RequestAssignment {
+  id                  String                  @id @default(uuid())
+  requestId           String
+  donorId             String
+  status              RequestAssignmentStatus @default(PENDING)
+  assignedById        String
+  bagUnits            Int                     @default(1)
+  assignedAt          DateTime                @default(now())
+  notifiedAt          DateTime?
+  acceptedAt          DateTime?
+  declinedAt          DateTime?
+  cancelledAt         DateTime?
+  donationSubmittedAt DateTime?
+  donatedAt           DateTime?
+  rejectedAt          DateTime?
+  rejectionReason     String?
+  declineReason       String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  deletedAt           DateTime?
+  isDeleted           Boolean                 @default(false)
+
+  request    BloodRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor      Donor          @relation("DonorRequestAssignments", fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assignedBy Donor          @relation("RequestAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // An assignment can fulfill exactly one bag and therefore has at most one linked donation.
+  donation   BloodDonation?
+
+  @@unique([requestId, donorId])
+  @@index([requestId])
+  @@index([requestId, status])
+  @@index([donorId])
+  @@index([status])
+  @@map("requestAssignments")
+}
+
+model BloodRequestStatusHistory {
+  id             String              @id @default(uuid())
+  requestId      String
+  previousStatus BloodRequestStatus?
+  newStatus      BloodRequestStatus
+  changedById    String?
+  reason         String?
+  createdAt      DateTime            @default(now())
+
+  request   BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  changedBy Donor?       @relation("BloodRequestStatusChangedBy", fields: [changedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([requestId])
+  @@index([changedById])
+  @@map("bloodRequestStatusHistory")
+}
+
+model DonationAppointment {
+  id             String            @id @default(uuid())
+  donorId        String
+  organizationId String
+  eventId        String?
+  bloodGroupId   String
+  scheduledAt    DateTime
+  status         AppointmentStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean           @default(false)
+
+  donor        Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  event        Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  bloodGroup   BloodGroup   @relation(fields: [bloodGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([donorId])
+  @@index([organizationId])
+  @@index([eventId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("donationAppointments")
+}
+
+model Post {
+  id             String         @id @default(uuid())
+  donorId        String
+  organizationId String?
+  donationId     String?        @unique
+  postType       PostType
+  // Added: matches frontend Post.visibility ("Public" | "Private")
+  visibility     PostVisibility @default(PUBLIC)
+  // Added: matches frontend Post.isWork (featured on homepage "Our Work" section)
+  isWork         Boolean        @default(false)
+  title          String
+  content        String
+  images         String[]
+  approvalStatus ApprovalStatus
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean        @default(false)
+
+  donor        Donor          @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donation     BloodDonation? @relation(fields: [donationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  comments     PostComment[]
+  likes        PostLike[]
+
+  slug String @unique
+
+  @@index([donorId])
+  @@index([organizationId])
+  @@index([approvalStatus])
+  @@index([postType])
+  @@index([isWork])
+  @@index([organizationId, createdAt])
+  @@index([approvalStatus, createdAt])
+  @@map("posts")
+}
+
+model PostComment {
+  id        String    @id @default(uuid())
+  postId    String
+  donorId   String
+  parentId  String?
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+
+  post    Post          @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor   Donor         @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parent  PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  replies PostComment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([donorId])
+  @@index([parentId])
+  @@map("postComments")
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  donorId   String
+  createdAt DateTime @default(now())
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor Donor @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([postId, donorId])
+  @@index([postId])
+  @@map("postLikes")
+}
+
+model Event {
+  id              String    @id @default(uuid())
+  organizationId  String
+  title           String
+  description     String?
+  eventType       EventType
+  eventDate       DateTime
+  // Added: matches frontend eventData.ts time field
+  eventTime       String?
+  // Added: matches frontend eventData.ts slots field
+  slots           String?
+  divisionId      String
+  districtId      String
+  upazilaId       String
+  locationDetails String?
+  // Added: slug for event detail page URL
+  slug            String?   @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean   @default(false)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  division     Division              @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district     District              @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila      Upazila               @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  participants EventParticipant[]
+  appointments DonationAppointment[]
+
+  @@index([organizationId])
+  @@index([eventType])
+  @@index([eventDate])
+  @@index([districtId])
+  @@map("events")
+}
+
+model EventParticipant {
+  id                String            @id @default(uuid())
+  eventId           String
+  donorId           String
+  participationType ParticipationType
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+  isDeleted         Boolean           @default(false)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  donor Donor @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([eventId, donorId])
+  @@index([eventId])
+  @@index([donorId])
+  @@map("eventParticipants")
+}
+
+model MedicalInstitution {
+  id         String    @id @default(uuid())
+  name       String
+  // Added: matches frontend medicalData.ts institutions type field
+  type       String?
+  phone      String
+  address    String
+  logo       String?
+  coverImage String?
+  divisionId String
+  districtId String
+  upazilaId  String
+  // Added: matches frontend medicalData.ts institutions status field
+  openStatus String?
+  // Added: slug for medical institution detail page URL
+  slug       String?   @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  isDeleted  Boolean   @default(false)
+
+  doctors               Doctor[]
+  medicalInformations   MedicalInformation[]
+  medicalAdvertisements MedicalAdvertisement[]
+
+  @@index([divisionId])
+  @@index([districtId])
+  @@index([upazilaId])
+  @@map("medicalInstitutions")
+}
+
+model Doctor {
+  id             String    @id @default(uuid())
+  institutionId  String
+  name           String
+  specialization String
+  phone          String
+  visitingHours  String?
+  // Added: matches frontend medicalData.ts doctors exp field
+  experience     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean   @default(false)
+
+  institution MedicalInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([institutionId])
+  @@map("doctors")
+}
+
+model MedicalInformation {
+  id            String        @id @default(uuid())
+  institutionId String
+  title         String
+  content       String
+  // Added: matches frontend medicalData.ts medicalInfos category field
+  category      String?
+  createdBy     String
+  status        ArticleStatus
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  isDeleted     Boolean       @default(false)
+
+  institution MedicalInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([createdBy])
+  @@index([status])
+  @@map("medicalInformations")
+}
+
+model MedicalAdvertisement {
+  id            String    @id @default(uuid())
+  title         String
+  imageUrl      String
+  institutionId String
+  redirectUrl   String?
+  startDate     DateTime
+  endDate       DateTime
+  status        AdStatus
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  isDeleted     Boolean   @default(false)
+
+  institution MedicalInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([createdBy])
+  @@index([status])
+  @@map("medicalAdvertisements")
+}
+
+model Notification {
+  id          String               @id @default(uuid())
+  donorId     String
+  title       String
+  message     String
+  type        NotificationType
+  // Added: matches frontend AdminNotification.priority
+  priority    NotificationPriority @default(ROUTINE)
+  // Added: for linking notifications to related entities
+  relatedId   String?
+  relatedType String?
+  isRead      Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  deletedAt   DateTime?
+  isDeleted   Boolean              @default(false)
+
+  donor Donor @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([donorId])
+  @@index([isRead])
+  @@index([type])
+  @@index([donorId, createdAt])
+  @@map("notifications")
+}
+
+model Report {
+  id         String           @id @default(uuid())
+  reportedBy String
+  targetType ReportTargetType
+  targetId   String
+  reason     String
+  status     ReportStatus     @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  deletedAt  DateTime?
+  isDeleted  Boolean          @default(false)
+
+  reporter Donor @relation(fields: [reportedBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([reportedBy])
+  @@index([targetType])
+  @@index([status])
+  @@map("reports")
+}
+
+model Blog {
+  id          String     @id @default(uuid())
+  title       String
+  slug        String     @unique
+  content     String
+  coverImage  String?
+  authorId    String
+  status      BlogStatus
+  // Added: matches frontend Blog.reads field
+  reads       Int        @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+  isDeleted   Boolean    @default(false)
+
+  author Donor @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([authorId])
+  @@map("blogs")
+}
+
+model Gallery {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  // Added: matches frontend GalleryAsset.category
+  category       String?
+  // Added: matches frontend GalleryAsset.slug
+  slug           String    @unique
+  // Added: matches frontend GalleryAsset.img (primary cover image)
+  coverImage     String?
+  images         String[]
+  // Nullable: an Organization-owned Gallery item has organizationId set to
+  // that Organization; organizationId: null is the convention (matching
+  // OrganizationMember's existing null-organizationId = "Central/National"
+  // convention) for an admin-only, org-independent "Homepage Gallery" item
+  // shown on the public Homepage rather than any single Organization's page.
+  organizationId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean   @default(false)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([organizationId])
+  @@map("galleries")
+}
+
+model Faq {
+  id        String    @id @default(uuid())
+  question  String
+  answer    String
+  category  String?
+  active    Boolean   @default(true)
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+
+  @@index([active])
+  @@index([category])
+  @@index([order])
+  @@map("faqs")
+}
+
+// New model: matches frontend policyService.ts PolicyItem type
+model Policy {
+  id          String         @id @default(uuid())
+  category    PolicyCategory
+  title       String
+  description String
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+  isDeleted   Boolean        @default(false)
+
+  @@index([category])
+  @@index([active])
+  @@map("policies")
+}
+
+model ContactMessage {
+  id        String               @id @default(uuid())
+  name      String
+  email     String
+  message   String
+  status    ContactMessageStatus @default(NEW)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
+// Definitions for donor achievement badges. Seeded from the previously
+// hardcoded frontend list (apps/web/src/lib/donorAchievements.ts) — see
+// src/app/seed/achievementSeed.ts.
+model Achievement {
+  id             String                   @id @default(uuid())
+  title          String
+  description    String
+  icon           String
+  thresholdType  AchievementThresholdType
+  thresholdValue Int
+  active         Boolean                  @default(true)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean                  @default(false)
+
+  unlockedBy DonorAchievement[]
+
+  @@index([active])
+  @@index([thresholdType])
+  @@map("achievements")
+}
+
+// Records which donors have unlocked which achievements, evaluated in
+// bloodDonation.service.ts verifyDonation().
+model DonorAchievement {
+  id            String   @id @default(uuid())
+  donorId       String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  donor       Donor       @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([donorId, achievementId])
+  @@index([donorId])
+  @@index([achievementId])
+  @@map("donor_achievements")
+}
+
+model DonorOrganizationAffiliation {
+  id             String            @id @default(uuid())
+  donorId        String
+  organizationId String
+  upazilaId      String
+  source         AffiliationSource
+  active         Boolean           @default(true)
+  assignedAt     DateTime          @default(now())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  donor        Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila      Upazila      @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([donorId])
+  @@index([organizationId, active])
+  @@index([upazilaId, active])
+  @@map("donor_organization_affiliations")
+}
+
+model MessageOutbox {
+  id                String              @id @default(uuid())
+  channel           MessageChannel
+  templateKey       String
+  recipient         String
+  payload           Json
+  aggregateType     String
+  aggregateId       String
+  eventKey          String              @unique
+  status            MessageOutboxStatus @default(PENDING)
+  attempts          Int                 @default(0)
+  nextAttemptAt     DateTime            @default(now())
+  providerMessageId String?
+  lastError         String?
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([aggregateType, aggregateId])
+  @@map("message_outbox")
+}

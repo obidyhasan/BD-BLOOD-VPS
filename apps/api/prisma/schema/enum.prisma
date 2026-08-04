@@ -1,0 +1,230 @@
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum BloodRequestStatus {
+  // Legacy state retained until request-state backfill is complete.
+  PENDING
+  SUBMITTED
+  PROCESSING
+  DONOR_FOUND
+  FULFILLED
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum RequestAssignmentStatus {
+  // Legacy states retained until assignment-state backfill is complete.
+  PENDING
+  NOTIFIED
+  ACCEPTED
+  REJECTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+  DONATION_PENDING
+  DONATED
+}
+
+// Aligned with frontend postService.ts type field
+enum PostType {
+  URGENT
+  EMERGENCY
+  EVENT
+  ANNOUNCEMENT
+  GENERAL
+  RECAP
+  // Legacy values kept for migration safety
+  DONATION
+  HELP_REQUEST
+  SOCIAL_ACTIVITY
+}
+
+enum PostVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BlogStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Aligned with frontend eventData.ts type values
+enum EventType {
+  DONATION_CAMP
+  WORKSHOP
+  AWARENESS
+  SOCIAL_ACTIVITY
+  // legacy
+  BLOOD_CAMP
+}
+
+enum ParticipationType {
+  DONOR
+  VOLUNTEER
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AdStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ReportTargetType {
+  DONOR
+  ORGANIZATION
+  POST
+  EVENT
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
+// Extended to match frontend notificationService.ts types
+enum NotificationType {
+  SYSTEM
+  BLOOD_REQUEST
+  BLOOD
+  EVENT
+  ORG
+  POST
+  ADMIN
+}
+
+enum NotificationPriority {
+  HIGH
+  MEDIUM
+  LOW
+  ROUTINE
+}
+
+enum Role {
+  DONOR
+  ADMIN
+}
+
+enum OrganizationMemberStatus {
+  ACTIVE
+  PENDING
+  REJECTED
+}
+
+// Aligned with frontend OrganizationNode.verification
+enum OrganizationStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// Aligned with frontend positionsService.ts level
+enum PositionLevel {
+  EXECUTIVE
+  MANAGEMENT
+  SUPPORT
+}
+
+// Aligned with frontend positionsService.ts status
+enum PositionStatus {
+  MAIN_ROLE
+  ASSISTANT
+  ACTIVE
+  GENERAL
+}
+
+// Aligned with frontend requestService.ts BloodRequest.type
+enum BloodRequestType {
+  URGENT
+  GENERAL
+}
+
+enum PolicyCategory {
+  SAFETY
+  ADMIN
+  DONOR
+  PRIVACY
+}
+
+enum ContactMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AchievementThresholdType {
+  VERIFIED_DONATIONS
+  TOTAL_DONATIONS
+}
+
+enum OrganizationLevel {
+  CENTRAL
+  DIVISION
+  DISTRICT
+  UPAZILA
+}
+
+enum AffiliationSource {
+  PROFILE
+  ADMIN
+  MIGRATION
+}
+
+enum GovernanceCategory {
+  COMMITTEE
+  ADVISOR
+}
+
+enum DonorProfileStatus {
+  INCOMPLETE
+  COMPLETE
+}
+
+enum MessageChannel {
+  SMS
+  IN_APP
+  EMAIL
+}
+
+enum MessageOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DEAD
+}

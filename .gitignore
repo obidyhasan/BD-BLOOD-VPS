@@ -1,0 +1,46 @@
+# ---- dependencies ----
+node_modules
+**/node_modules
+/.pnp
+.pnp.*
+
+# ---- build output ----
+**/.next/
+**/out/
+**/dist/
+**/dist*
+**/build
+apps/api/generated/prisma
+
+# ---- testing / coverage ----
+**/coverage
+
+# ---- env files (never commit real secrets) ----
+.env
+.env.local
+.env.production
+**/.env
+**/.env.local
+**/.env.production
+**/.env*.local
+!.env.example
+!**/.env.example
+!**/.env.production.example
+
+# ---- typescript ----
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# ---- logs / debug ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---- misc ----
+.DS_Store
+*.pem
+
+# ---- previously used hosting platform — superseded by the VPS/Docker setup ----
+.vercel
+**/.vercel

@@ -1,0 +1,59 @@
+"use client";
+
+import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
+import { useMemo } from "react";
+import { DonorDataTable } from "./DonorDataTable";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { motion } from "motion/react";
+import { useGetPublicDonorsQuery } from "@/redux/features/donors/donorsApi";
+
+const DonorManagePage = () => {
+  const { data, isLoading } = useGetPublicDonorsQuery({ page: 1, limit: 200 });
+
+  const donors = useMemo(
+    () =>
+      (data?.data ?? []).map((d) => ({
+        id: d.id,
+        slug: d.id,
+        name: d.fullName,
+        bloodGroup: d.bloodGroup?.groupName ?? "—",
+        phone: d.phoneVerified ? "Verified phone" : "Phone not verified",
+        district: d.district?.name ?? "—",
+        lastDonationDate: d.lastDonationDate ?? "",
+        available: d.availabilityStatus === "AVAILABLE",
+        accountStatus: "active" as const,
+      })),
+    [data],
+  );
+
+  return (
+    <div className="flex flex-1 flex-col bg-zinc-50/50 dark:bg-zinc-950/30 space-y-8">
+      <div className="@container/main flex flex-1 flex-col gap-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <DashboardHeader
+            variant="clinical"
+            title="Donor Manage"
+            subtitle="Browse verified donors and see who is available right now."
+            badge="Verified Donors"
+          />
+
+          <Button variant="outline" className="h-14 px-6 rounded-2xl border-border/40 bg-white dark:bg-zinc-900 font-black text-[10px] uppercase  flex items-center gap-3 hover:scale-105 transition-all">
+            <Download className="size-4 opacity-40" />
+            Export Ledger
+          </Button>
+        </div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          {isLoading ? (
+            <div className="h-64 rounded-[3rem] border border-dashed border-border/40 animate-pulse bg-zinc-100 dark:bg-zinc-800" />
+          ) : (
+            <DonorDataTable data={donors} />
+          )}
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default DonorManagePage;

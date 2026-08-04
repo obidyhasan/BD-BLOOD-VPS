@@ -1,0 +1,33 @@
+# Applies to both apps/api and apps/web Docker builds — the build context
+# for both is the repo root (see each Dockerfile's header comment).
+
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+out
+**/out
+build
+**/build
+
+.git
+.gitignore
+
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+*.md
+!DEPLOYMENT.md
+
+.vercel
+**/.vercel
+vercel.json
+**/vercel.json
