@@ -182,17 +182,21 @@ const PublicOrganizationProfile = ({
                   opts={{ loop: true }}
                 >
                   <CarouselContent>
-                    {[
-                      "Next Committee Meeting: Sunday, 10 AM.",
-                      "Blood drive starting next week in Barishal.",
-                      "Urgent O+ blood needed at our Barishal center.",
-                    ].map((notice, index) => (
-                      <CarouselItem className="flex items-center" key={index}>
-                        <p className="text-xl font-bold tracking-tight opacity-80 leading-snug ">
-                          {notice}
+                    {works.length > 0 ? (
+                      works.slice(0, 5).map((notice) => (
+                        <CarouselItem className="flex items-center" key={notice.id}>
+                          <p className="text-xl font-bold tracking-tight opacity-80 leading-snug line-clamp-3">
+                            {notice.title}
+                          </p>
+                        </CarouselItem>
+                      ))
+                    ) : (
+                      <CarouselItem className="flex items-center">
+                        <p className="text-sm font-bold text-white/60">
+                          No published organization notices yet.
                         </p>
                       </CarouselItem>
-                    ))}
+                    )}
                   </CarouselContent>
                 </Carousel>
               </div>
@@ -285,6 +289,12 @@ const PublicOrganizationProfile = ({
                 key={member.id}
                 name={member.name}
                 position={member.role}
+                image={(membersData?.data ?? initialMembers ?? []).find(
+                  (item) => item.id === member.id,
+                )?.donor.profilePhoto}
+                slug={(membersData?.data ?? initialMembers ?? []).find(
+                  (item) => item.id === member.id,
+                )?.donor.slug ?? member.id}
               />
             ))}
           </div>

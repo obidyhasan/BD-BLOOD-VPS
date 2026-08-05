@@ -29,9 +29,9 @@ export function mapOrganizationMemberToUI(m: OrganizationMember): OrgMemberUIMod
   return {
     id: m.id,
     donorId: m.donorId,
-    slug: m.donorId,
+    slug: m.donor.slug ?? m.donorId,
     name: m.donor.fullName,
-    email: m.donor.email,
+    email: m.donor.email ?? "",
     role: m.position.level.toLowerCase(),
     position: m.position.positionName,
     employeeId: m.id.slice(0, 8).toUpperCase(),

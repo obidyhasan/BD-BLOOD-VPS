@@ -9,16 +9,27 @@ const emailSender = async (
   templateName: string,
   data: Record<string, any> = {},
 ) => {
+  const port = Number(config.email.smtp_port);
+  if (
+    !config.email.smtp_host ||
+    !Number.isFinite(port) ||
+    !config.email.smtp_user ||
+    !config.email.smtp_pass ||
+    !config.email.smtp_from
+  ) {
+    throw new Error("SMTP is not fully configured.");
+  }
+
   const transporter = nodemailer.createTransport({
-    secure: true,
+    secure: port === 465,
     auth: {
       user: config.email.smtp_user,
       pass: config.email.smtp_pass,
     },
-    port: Number(config.email.smtp_port),
+    port,
     host: config.email.smtp_host,
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: config.node_env === "production",
     },
   });
 

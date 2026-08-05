@@ -25,6 +25,19 @@ const uniqueBlogSlug = async (title: string, excludeId?: string) => {
   return slug;
 };
 
+const toPublicBlog = <
+  T extends { author: Record<string, unknown> },
+>(blog: T) => {
+  const {
+    email: _email,
+    phone: _phone,
+    password: _password,
+    phoneVerifiedAt: _phoneVerifiedAt,
+    ...publicAuthor
+  } = blog.author;
+  return { ...blog, author: publicAuthor };
+};
+
 const getRequesterDonor = async (user: IJWTPayload) => {
   const donor = await prisma.donor.findUnique({ where: { email: user.email } });
   if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
@@ -129,7 +142,10 @@ const getAllBlogs = async (params: IGenericFilters, options: IOptions, onlyAppro
     prisma.blog.count({ where: whereConditions }),
   ]);
 
-  return { meta: { page, limit, total }, data: result };
+  return {
+    meta: { page, limit, total },
+    data: onlyApproved ? result.map(toPublicBlog) : result,
+  };
 };
 
 const resolveBlogId = async (slugOrId: string, onlyApproved: boolean) => {
@@ -176,13 +192,13 @@ const getBlogBySlug = async (slug: string, onlyApproved = false) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Blog not found!");
   }
 
-  return blog;
+  return onlyApproved ? toPublicBlog(blog) : blog;
 };
 
 const getSingleBlog = async (slugOrId: string, onlyApproved = false) => {
   const id = await resolveBlogId(slugOrId, onlyApproved);
 
-  return prisma.blog.findUniqueOrThrow({
+  const blog = await prisma.blog.findUniqueOrThrow({
     where: {
       id,
       isDeleted: false,
@@ -192,6 +208,8 @@ const getSingleBlog = async (slugOrId: string, onlyApproved = false) => {
       author: { omit: { password: true } },
     },
   });
+
+  return onlyApproved ? toPublicBlog(blog) : blog;
 };
 
 const updateBlog = async (

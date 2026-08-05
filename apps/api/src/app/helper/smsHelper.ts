@@ -80,6 +80,14 @@ const sendSMS = async (to: string, message: string) => {
       : "***";
 
   if (!isSmsConfigured()) {
+    if (config.node_env === "production") {
+      console.error("[SMS] MiM SMS credentials are not configured.");
+      return {
+        success: false,
+        message: "SMS provider is not configured.",
+      };
+    }
+
     console.log(`[SMS:DEV] ${maskedPhone}: ${message.slice(0, 120)}`);
     return { success: true, message: "SMS sent (development simulation)." };
   }

@@ -78,8 +78,9 @@ export interface OrganizationMember {
   status: "ACTIVE" | "PENDING" | "REJECTED";
   donor: {
     id: string;
+    slug?: string | null;
     fullName: string;
-    email: string;
+    email?: string;
     phone?: string | null;
     profilePhoto?: string | null;
     bio?: string | null;

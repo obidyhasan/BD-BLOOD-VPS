@@ -158,14 +158,21 @@ flags needed.
 
 ## 10. Application deployment (first run)
 
+Before starting the API, set `ORGANIZATION_SEED_PHONE` in
+`apps/api/.env.production` to the real public coordination number. The
+idempotent first-run seed creates geography, blood groups, achievement
+milestones, and missing canonical Central/Division/District/Upazila
+organizations. Generated organization contacts can then be replaced by Admin
+with organization-specific details.
+
 ```bash
 docker compose logs -f api worker
 ```
 
 Look for the API startup message and `BD Blood background worker started.`
-After the first
-successful run, set `RUN_SEEDS=false` in `apps/api/.env.production` and
-`docker compose up -d api` again to skip reseeding on future restarts.
+After the first successful run, set `RUN_SEEDS=false` in
+`apps/api/.env.production` and `docker compose up -d api` again to skip
+reseeding on future restarts.
 
 ## 11. Prisma migrations
 

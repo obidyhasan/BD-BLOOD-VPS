@@ -3,46 +3,30 @@
 import SectionHeader from "@/components/shared/SectionHeader/SectionHeader";
 import TeamCard from "./TeamCard";
 import { motion } from "motion/react";
-import { Loader2 } from "lucide-react";
-import { useGetPublicDonorsQuery } from "@/redux/features/donors/donorsApi";
-import type { Donor } from "@/redux/features/donors/donorsApi";
+import type { OrganizationMember } from "@/redux/features/organizations/organizationsApi";
 
 type OurTeamProps = {
-  initialMembers?: Donor[];
+  initialMembers?: OrganizationMember[];
 };
 
-export default function OurTeam({ initialMembers }: OurTeamProps) {
-  const { data, isLoading } = useGetPublicDonorsQuery(
-    {
-      page: 1,
-      limit: 8,
-      availabilityStatus: "AVAILABLE",
-    },
-    { skip: !!initialMembers?.length },
-  );
-
-  const members = initialMembers ?? data?.data ?? [];
-  const loading = !initialMembers?.length && isLoading;
+export default function OurTeam({ initialMembers = [] }: OurTeamProps) {
+  const members = initialMembers;
 
   return (
     <section id="team" className="py-10 md:py-16 bg-white dark:bg-zinc-950">
       <div className="max-w-7xl mx-auto px-6">
         <SectionHeader
-          title="The Hearts Behind"
-          subtitle="Verified donors and coordinators from the BD Blood network."
+          title="National Committee"
+          subtitle="The appointed national committee coordinating the BD Blood network."
         />
 
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="size-8 animate-spin text-primary" />
-          </div>
-        ) : members.length === 0 ? (
+        {members.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center opacity-40">
             <p className="text-sm font-black uppercase  ">
-              Onboarding verified donors...
+              National committee roster pending
             </p>
             <p className="text-[10px] mt-2 font-bold ">
-              Check back soon to meet the network.
+              Appointed members will appear here after publication.
             </p>
           </div>
         ) : (
@@ -56,10 +40,10 @@ export default function OurTeam({ initialMembers }: OurTeamProps) {
                 viewport={{ once: true }}
               >
                 <TeamCard
-                  name={member.fullName}
-                  position={`${member.bloodGroup?.groupName ?? "Donor"} • ${member.district?.name ?? "Bangladesh"}`}
-                  image={member.profilePhoto}
-                  slug={member.id}
+                  name={member.donor.fullName}
+                  position={member.position.positionName}
+                  image={member.donor.profilePhoto}
+                  slug={member.donor.slug ?? member.donor.id}
                 />
               </motion.div>
             ))}

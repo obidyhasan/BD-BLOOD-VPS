@@ -5,6 +5,7 @@ import {
   OrganizationMemberStatus,
   PositionLevel,
   PostType,
+  PostVisibility,
   Prisma,
   Role,
   VerificationStatus,
@@ -44,6 +45,19 @@ const uniquePostSlug = async (title: string, excludeId?: string) => {
   return slug;
 };
 
+const toPublicPost = <
+  T extends { donor: Record<string, unknown> },
+>(post: T) => {
+  const {
+    email: _email,
+    phone: _phone,
+    password: _password,
+    phoneVerifiedAt: _phoneVerifiedAt,
+    ...publicDonor
+  } = post.donor;
+  return { ...post, donor: publicDonor };
+};
+
 const getRequesterDonor = async (user: IJWTPayload) => {
   const donor = await prisma.donor.findUnique({ where: { email: user.email } });
   if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
@@ -55,20 +69,57 @@ const getRequesterDonor = async (user: IJWTPayload) => {
   return donor;
 };
 
+const assertCanAssociateWithOrganization = async (
+  user: IJWTPayload,
+  donorId: string,
+  organizationId?: string | null,
+) => {
+  if (!organizationId) return;
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId, isDeleted: false },
+    select: { id: true },
+  });
+  if (!organization) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  }
+  if (user.role === Role.ADMIN) return;
+
+  const [affiliation, membership] = await Promise.all([
+    prisma.donorOrganizationAffiliation.findFirst({
+      where: { donorId, organizationId, active: true },
+      select: { id: true },
+    }),
+    prisma.organizationMember.findFirst({
+      where: {
+        donorId,
+        organizationId,
+        status: OrganizationMemberStatus.ACTIVE,
+        isDeleted: false,
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!affiliation && !membership) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You cannot associate a post with an organization outside your affiliation.",
+    );
+  }
+};
+
 const createPost = async (
   user: IJWTPayload,
   payload: any,
   imageUrls: string[] = [],
 ) => {
   const donor = await getRequesterDonor(user);
-
-  if (payload.organizationId) {
-    const org = await prisma.organization.findUnique({
-      where: { id: payload.organizationId, isDeleted: false },
-    });
-    if (!org)
-      throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
-  }
+  await assertCanAssociateWithOrganization(
+    user,
+    donor.id,
+    payload.organizationId,
+  );
 
   let donationId: string | null = null;
   if (PERSONAL_DONATION_POST_TYPES.includes(payload.postType)) {
@@ -172,7 +223,10 @@ const getAllPosts = async (params: IGenericFilters, options: IOptions, onlyAppro
   const andConditions: Prisma.PostWhereInput[] = [{ isDeleted: false }];
 
   if (onlyApproved) {
-    andConditions.push({ approvalStatus: ApprovalStatus.APPROVED });
+    andConditions.push({
+      approvalStatus: ApprovalStatus.APPROVED,
+      visibility: PostVisibility.PUBLIC,
+    });
   }
 
   if (searchTerm) {
@@ -209,7 +263,10 @@ const getAllPosts = async (params: IGenericFilters, options: IOptions, onlyAppro
     prisma.post.count({ where: whereConditions }),
   ]);
 
-  return { meta: { page, limit, total }, data: result };
+  return {
+    meta: { page, limit, total },
+    data: onlyApproved ? result.map(toPublicPost) : result,
+  };
 };
 
 const resolvePostId = async (slugOrId: string, onlyApproved: boolean) => {
@@ -219,7 +276,12 @@ const resolvePostId = async (slugOrId: string, onlyApproved: boolean) => {
     where: {
       slug: slugOrId,
       isDeleted: false,
-      ...(onlyApproved ? { approvalStatus: ApprovalStatus.APPROVED } : {}),
+      ...(onlyApproved
+        ? {
+            approvalStatus: ApprovalStatus.APPROVED,
+            visibility: PostVisibility.PUBLIC,
+          }
+        : {}),
     },
     select: { id: true },
   });
@@ -228,7 +290,12 @@ const resolvePostId = async (slugOrId: string, onlyApproved: boolean) => {
   const posts = await prisma.post.findMany({
     where: {
       isDeleted: false,
-      ...(onlyApproved ? { approvalStatus: ApprovalStatus.APPROVED } : {}),
+      ...(onlyApproved
+        ? {
+            approvalStatus: ApprovalStatus.APPROVED,
+            visibility: PostVisibility.PUBLIC,
+          }
+        : {}),
     },
     select: { id: true, title: true },
   });
@@ -243,6 +310,7 @@ const getPostBySlug = async (slug: string) => {
       slug,
       isDeleted: false,
       approvalStatus: ApprovalStatus.APPROVED,
+      visibility: PostVisibility.PUBLIC,
     },
     include: {
       donor: { omit: { password: true }, include: { bloodGroup: true } },
@@ -255,7 +323,7 @@ const getPostBySlug = async (slug: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Post not found!");
   }
 
-  return post;
+  return toPublicPost(post);
 };
 
 const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
@@ -265,7 +333,12 @@ const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
     where: {
       id,
       isDeleted: false,
-      ...(onlyApproved ? { approvalStatus: ApprovalStatus.APPROVED } : {}),
+      ...(onlyApproved
+        ? {
+            approvalStatus: ApprovalStatus.APPROVED,
+            visibility: PostVisibility.PUBLIC,
+          }
+        : {}),
     },
     include: {
       donor: { omit: { password: true }, include: { bloodGroup: true } },
@@ -273,7 +346,7 @@ const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
       _count: { select: { likes: true, comments: true } },
     },
   });
-  return post;
+  return onlyApproved ? toPublicPost(post) : post;
 };
 
 const getMyPostBySlug = async (user: IJWTPayload, slug: string) => {
@@ -405,12 +478,12 @@ const updatePost = async (
     );
   }
 
-  if (payload.organizationId) {
-    const org = await prisma.organization.findUnique({
-      where: { id: payload.organizationId as any, isDeleted: false },
-    });
-    if (!org)
-      throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  if (payload.organizationId !== undefined) {
+    await assertCanAssociateWithOrganization(
+      user,
+      donor.id,
+      payload.organizationId,
+    );
   }
 
   const keptUrls = Array.isArray(payload.images)

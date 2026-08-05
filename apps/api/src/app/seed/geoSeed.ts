@@ -2821,22 +2821,33 @@ async function main(silent = false): Promise<void> {
   };
 
   // ── Already-seeded check ──────────────────────────────────────────────────
-  // Count existing divisions. If all 8 are present, the DB is fully seeded —
-  // skip every upsert and return immediately.
-  const existingDivisionCount = await prisma.division.count({
-    where: { isDeleted: false },
-  });
+  // Verify every hierarchy level. Checking only the eight divisions can hide a
+  // failed/partial first run that never inserted all districts or Upazilas.
+  const [existingDivisionCount, existingDistrictCount, existingUpazilaCount] =
+    await Promise.all([
+      prisma.division.count({ where: { isDeleted: false } }),
+      prisma.district.count({ where: { isDeleted: false } }),
+      prisma.upazila.count({ where: { isDeleted: false } }),
+    ]);
 
-  if (existingDivisionCount >= divisions.length) {
+  if (
+    existingDivisionCount >= divisions.length &&
+    existingDistrictCount >= districts.length &&
+    existingUpazilaCount >= upazilas.length
+  ) {
     log("⏭️  Geo data already seeded — skipping.");
     return;
   }
 
   // ── Partial-seed warning ──────────────────────────────────────────────────
-  // Some divisions exist but not all — run upserts to fill the gaps.
-  if (existingDivisionCount > 0) {
+  // Any existing hierarchy data means upserts must fill only missing records.
+  if (
+    existingDivisionCount > 0 ||
+    existingDistrictCount > 0 ||
+    existingUpazilaCount > 0
+  ) {
     log(
-      `⚠️  Partial seed detected (${existingDivisionCount}/${divisions.length} divisions found). Filling missing records...`,
+      `⚠️  Partial seed detected (${existingDivisionCount}/${divisions.length} divisions, ${existingDistrictCount}/${districts.length} districts, ${existingUpazilaCount}/${upazilas.length} upazilas). Filling missing records...`,
     );
   } else {
     log("🌱 Seeding geo data for the first time...\n");

@@ -14,9 +14,11 @@ import { getAllGalleries } from "@/services/gallery";
 import { getFaqs } from "@/services/faq";
 import { getMedicalAds } from "@/services/medicalInstitution";
 import { GEO_ORGANIZATION_TYPES } from "@/lib/organizationGeo";
-import { getAllOrganizations } from "@/services/organization";
+import {
+  getAllOrganizations,
+  getPublicLeadershipMembers,
+} from "@/services/organization";
 import { getDivisions } from "@/services/location";
-import { getPublicDonors } from "@/services/user";
 
 export default async function HomePage() {
   const [
@@ -28,7 +30,7 @@ export default async function HomePage() {
     adsRes,
     orgsRes,
     divisionsRes,
-    donorsRes,
+    leadershipRes,
   ] = await Promise.all([
     getPublicStats(),
     getPublicBlogs({
@@ -48,7 +50,7 @@ export default async function HomePage() {
       type: GEO_ORGANIZATION_TYPES.division,
     }),
     getDivisions(),
-    getPublicDonors({ page: 1, limit: 8, availabilityStatus: "AVAILABLE" }),
+    getPublicLeadershipMembers({ level: "EXECUTIVE" }),
   ]);
 
   return (
@@ -61,7 +63,7 @@ export default async function HomePage() {
       <MedicalAds initialAds={adsRes?.data ?? []} />
       <CommitteeSection initialOrganizations={orgsRes?.data ?? []} />
       <OurBlogs initialBlogs={blogsRes?.data ?? []} />
-      <OurTeam initialMembers={donorsRes?.data ?? []} />
+      <OurTeam initialMembers={leadershipRes?.data ?? []} />
       <GallerySection initialGalleries={galleriesRes?.data ?? []} />
       <FaqSection initialFaqs={faqsRes?.data ?? []} />
       <ContactSection />

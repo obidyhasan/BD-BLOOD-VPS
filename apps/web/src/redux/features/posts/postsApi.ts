@@ -4,7 +4,13 @@ export interface Post {
   id: string;
   donorId: string;
   organizationId?: string | null;
-  donor: { id: string; fullName: string; email: string };
+  donor: {
+    id: string;
+    fullName: string;
+    email?: string;
+    profilePhoto?: string | null;
+    bloodGroup?: { groupName: string };
+  };
   organization?: { id: string; name: string } | null;
   // postType matches frontend Post.type
   postType:

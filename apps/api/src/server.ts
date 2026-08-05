@@ -3,6 +3,8 @@ import app from "./app";
 import config from "./app/config";
 import { seedGeoData } from "./app/seed/geoSeed";
 import { seedBloodGroups } from "./app/seed/bloodGroupSeed";
+import { seedAchievements } from "./app/seed/achievementSeed";
+import { seedCanonicalOrganizations } from "./app/seed/organizationSeed";
 import { initSocket } from "./app/shared/socket";
 import { prisma } from "./app/shared/prisma";
 
@@ -13,7 +15,8 @@ async function bootstrap() {
       const isProd = process.env.NODE_ENV === "production";
       await seedGeoData(isProd);
       await seedBloodGroups(isProd);
-
+      await seedAchievements();
+      await seedCanonicalOrganizations();
     }
 
     server = createServer(app);

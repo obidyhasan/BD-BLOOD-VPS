@@ -88,6 +88,19 @@ const resolveLeadershipOrganizationId = async (
   return null;
 };
 
+const publicMemberDonorSelect = {
+  id: true,
+  slug: true,
+  fullName: true,
+  profilePhoto: true,
+  bio: true,
+  isVerified: true,
+  bloodGroup: { select: { groupName: true } },
+  division: { select: { id: true, name: true } },
+  district: { select: { id: true, name: true } },
+  upazila: { select: { id: true, name: true } },
+} as const;
+
 type MembershipWithPosition = {
   position?: { positionName?: string; positionStatus?: PositionStatus } | null;
 } | null;
@@ -204,8 +217,15 @@ const getPublicLeadershipMembers = async (scope: LeadershipScope) => {
         positionStatus: PositionStatus.ACTIVE,
       },
     },
-    include: {
-      donor: { omit: { password: true }, include: { bloodGroup: true } },
+    select: {
+      id: true,
+      organizationId: true,
+      donorId: true,
+      positionId: true,
+      category: true,
+      joinedAt: true,
+      status: true,
+      donor: { select: publicMemberDonorSelect },
       position: true,
       organization: { select: { id: true, name: true } },
     },
@@ -239,8 +259,15 @@ const getPublicOrganizationMembers = async (organizationId: string) => {
         level: { in: [PositionLevel.EXECUTIVE, PositionLevel.MANAGEMENT] },
       },
     },
-    include: {
-      donor: { omit: { password: true }, include: { bloodGroup: true } },
+    select: {
+      id: true,
+      organizationId: true,
+      donorId: true,
+      positionId: true,
+      category: true,
+      joinedAt: true,
+      status: true,
+      donor: { select: publicMemberDonorSelect },
       position: true,
     },
     orderBy: { joinedAt: "asc" },

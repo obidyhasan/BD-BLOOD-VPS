@@ -90,12 +90,14 @@ const MemberCard = ({ member, index = 0 }: MemberCardProps) => {
                 </div>
               </div>
 
-              <div className="w-full space-y-2 text-center pt-2 border-t border-border/10">
-                <div className="flex items-center justify-center gap-2 text-muted-foreground text-[11px] font-bold">
-                  <Mail className="size-3 opacity-40 shrink-0" />
-                  <span className="truncate">{member.email}</span>
+              {member.email && (
+                <div className="w-full space-y-2 text-center pt-2 border-t border-border/10">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground text-[11px] font-bold">
+                    <Mail className="size-3 opacity-40 shrink-0" />
+                    <span className="truncate">{member.email}</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </Link>
