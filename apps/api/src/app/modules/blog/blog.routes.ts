@@ -27,19 +27,19 @@ router.get("/by-slug/:slug", BlogController.getBlogBySlug);
 router.get("/:id", BlogController.getSingleBlogPublic);
 router.post("/:id/read", BlogController.incrementReadCount);
 
-// Donor/Admin
+// Admin-managed Education & Stories content
 router.post(
   "/",
-  auth(Role.ADMIN, Role.DONOR),
+  auth(Role.ADMIN),
   validateRequest(createBlogZodSchema),
   BlogController.createBlog,
 );
 router.patch(
   "/:id",
-  auth(Role.ADMIN, Role.DONOR),
+  auth(Role.ADMIN),
   validateRequest(updateBlogZodSchema),
   BlogController.updateBlog,
 );
-router.delete("/:id", auth(Role.ADMIN, Role.DONOR), BlogController.deleteBlog);
+router.delete("/:id", auth(Role.ADMIN), BlogController.deleteBlog);
 
 export const BlogRoutes = router;

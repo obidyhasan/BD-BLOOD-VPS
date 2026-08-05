@@ -272,9 +272,11 @@ model OrganizationMember {
   id             String                   @id @default(uuid())
   organizationId String?
   donorId        String                   @unique
-  // Fixed: removed @unique so multiple members can hold the same position type
+  // Positions are reusable definitions; seatKey uniquely identifies an active
+  // governance seat within one organization/scope, category, and position.
   positionId     String
   category       GovernanceCategory       @default(COMMITTEE)
+  seatKey        String?                  @unique
   appointedById  String?
   joinedAt       DateTime                 @default(now())
   activatedAt    DateTime?
@@ -812,6 +814,9 @@ model Gallery {
   // Added: matches frontend GalleryAsset.img (primary cover image)
   coverImage     String?
   images         String[]
+  isPublished    Boolean   @default(true)
+  isFeatured     Boolean   @default(false)
+  sortOrder      Int       @default(0)
   // Nullable: an Organization-owned Gallery item has organizationId set to
   // that Organization; organizationId: null is the convention (matching
   // OrganizationMember's existing null-organizationId = "Central/National"
@@ -826,6 +831,8 @@ model Gallery {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([organizationId])
+  @@index([organizationId, isPublished, sortOrder])
+  @@index([isFeatured, isPublished])
   @@map("galleries")
 }
 

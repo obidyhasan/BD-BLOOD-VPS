@@ -13,6 +13,9 @@ type CreateGalleryPayload = {
   slug?: string;
   coverImage?: string;
   images: string[];
+  isPublished?: boolean;
+  isFeatured?: boolean;
+  sortOrder?: number;
   // Omitted/undefined -> Homepage Gallery item (admin-only, org-independent).
   organizationId?: string;
 };
@@ -49,6 +52,9 @@ const createGallery = async (payload: CreateGalleryPayload) => {
       slug,
       coverImage: payload.coverImage ?? payload.images[0],
       images: payload.images,
+      isPublished: payload.isPublished ?? true,
+      isFeatured: payload.isFeatured ?? false,
+      sortOrder: payload.sortOrder ?? 0,
 
       ...(payload.organizationId
         ? { organization: { connect: { id: payload.organizationId } } }
@@ -61,7 +67,11 @@ const createGallery = async (payload: CreateGalleryPayload) => {
   });
 };
 
-const getAllGalleries = async (params: IGenericFilters, options: IOptions) => {
+const getAllGalleries = async (
+  params: IGenericFilters,
+  options: IOptions,
+  management = false,
+) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
 
@@ -74,6 +84,7 @@ const getAllGalleries = async (params: IGenericFilters, options: IOptions) => {
   // one of the two above).
   const whereConditions: Prisma.GalleryWhereInput = {
     isDeleted: false,
+    ...(management ? {} : { isPublished: true }),
     ...(filters.scope === "homepage"
       ? { organizationId: null }
       : filters.organizationId
@@ -81,12 +92,23 @@ const getAllGalleries = async (params: IGenericFilters, options: IOptions) => {
         : {}),
   };
 
+  const normalizedSortOrder: Prisma.SortOrder =
+    sortOrder === "asc" ? "asc" : "desc";
+  const orderBy: Prisma.GalleryOrderByWithRelationInput[] =
+    sortBy === "sortOrder"
+      ? [
+          { isFeatured: "desc" },
+          { sortOrder: normalizedSortOrder },
+          { createdAt: "desc" },
+        ]
+      : [{ [sortBy]: normalizedSortOrder }];
+
   const [result, total] = await Promise.all([
     prisma.gallery.findMany({
       skip,
       take: limit,
       where: whereConditions,
-      orderBy: { [sortBy]: sortOrder },
+      orderBy,
       include: { organization: true },
     }),
     prisma.gallery.count({ where: whereConditions }),
@@ -95,36 +117,51 @@ const getAllGalleries = async (params: IGenericFilters, options: IOptions) => {
   return { meta: { page, limit, total }, data: result };
 };
 
-const getSingleGallery = async (slugOrId: string) => {
+const getSingleGallery = async (slugOrId: string, management = false) => {
   if (isUuid(slugOrId)) {
     return prisma.gallery.findUniqueOrThrow({
-      where: { id: slugOrId, isDeleted: false },
+      where: {
+        id: slugOrId,
+        isDeleted: false,
+        ...(management ? {} : { isPublished: true }),
+      },
       include: { organization: true },
     });
   }
 
   const bySlug = await prisma.gallery.findFirst({
-    where: { slug: slugOrId, isDeleted: false },
+    where: {
+      slug: slugOrId,
+      isDeleted: false,
+      ...(management ? {} : { isPublished: true }),
+    },
     include: { organization: true },
   });
   if (bySlug) return bySlug;
 
   const galleries = await prisma.gallery.findMany({
-    where: { isDeleted: false },
+    where: {
+      isDeleted: false,
+      ...(management ? {} : { isPublished: true }),
+    },
     select: { id: true, title: true },
   });
   const match = galleries.find((g) => toSlug(g.title) === slugOrId);
   if (!match) throw new ApiError(httpStatus.NOT_FOUND, "Gallery not found!");
 
   return prisma.gallery.findUniqueOrThrow({
-    where: { id: match.id, isDeleted: false },
+    where: {
+      id: match.id,
+      isDeleted: false,
+      ...(management ? {} : { isPublished: true }),
+    },
     include: { organization: true },
   });
 };
 
 const getGalleryBySlug = async (slug: string) => {
   const gallery = await prisma.gallery.findFirst({
-    where: { slug, isDeleted: false },
+    where: { slug, isDeleted: false, isPublished: true },
     include: { organization: true },
   });
 

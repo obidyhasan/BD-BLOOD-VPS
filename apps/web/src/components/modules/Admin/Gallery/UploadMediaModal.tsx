@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -45,6 +46,9 @@ const uploadSchema = z.object({
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   img: z.string().min(1, "Image is required"),
+  isPublished: z.boolean(),
+  isFeatured: z.boolean(),
+  sortOrder: z.number().int().nonnegative(),
 });
 
 interface UploadMediaModalProps {
@@ -65,6 +69,9 @@ type CreateGalleryPayload = {
   description?: string;
   coverImage: string;
   images: string[];
+  isPublished: boolean;
+  isFeatured: boolean;
+  sortOrder: number;
   organizationId?: string;
 };
 
@@ -87,6 +94,9 @@ const UploadMediaModal = ({
       category: "Event",
       description: "",
       img: "",
+      isPublished: true,
+      isFeatured: false,
+      sortOrder: 0,
     },
   });
 
@@ -98,6 +108,9 @@ const UploadMediaModal = ({
         category: asset.category,
         description: asset.description || "",
         img: asset.img,
+        isPublished: asset.isPublished,
+        isFeatured: asset.isFeatured,
+        sortOrder: asset.sortOrder,
       });
     } else {
       form.reset({
@@ -106,6 +119,9 @@ const UploadMediaModal = ({
         category: "Event",
         description: "",
         img: "",
+        isPublished: true,
+        isFeatured: false,
+        sortOrder: 0,
       });
     }
   }, [asset, form, open]);
@@ -137,6 +153,9 @@ const UploadMediaModal = ({
             description: data.description,
             coverImage: data.img,
             images: data.img ? [data.img] : [],
+            isPublished: data.isPublished,
+            isFeatured: data.isFeatured,
+            sortOrder: data.sortOrder,
           },
         }).unwrap();
         toast.success("Media updated successfully");
@@ -148,6 +167,9 @@ const UploadMediaModal = ({
           description: data.description,
           coverImage: data.img,
           images: data.img ? [data.img] : [],
+          isPublished: data.isPublished,
+          isFeatured: data.isFeatured,
+          sortOrder: data.sortOrder,
           organizationId,
         };
 
@@ -331,6 +353,60 @@ const UploadMediaModal = ({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="isPublished"
+                render={({ field }) => (
+                  <FormItem className="flex min-h-20 items-center justify-between rounded-md border border-border/40 bg-zinc-50 p-4">
+                    <FormLabel className="text-xs font-black uppercase">
+                      Published
+                    </FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isFeatured"
+                render={({ field }) => (
+                  <FormItem className="flex min-h-20 items-center justify-between rounded-md border border-border/40 bg-zinc-50 p-4">
+                    <FormLabel className="text-xs font-black uppercase">
+                      Featured
+                    </FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sortOrder"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-black uppercase">
+                      Display Order
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-12 rounded-md"
+                        {...field}
+                        onChange={(event) =>
+                          field.onChange(event.currentTarget.valueAsNumber || 0)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <DialogFooter className="grid grid-cols-2 gap-4">
               <DialogClose asChild>

@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useGetAllGalleriesQuery,
+  useGetManagedGalleriesQuery,
   useDeleteGalleryMutation,
 } from "@/redux/features/gallery/galleryApi";
 import { mapGalleryItemToAsset } from "@/lib/gallery";
@@ -65,7 +65,7 @@ export default function OrganizationGalleryPage() {
 
   const { organizationId: orgId } = useOrganizationDashboardContext();
 
-  const { data, isLoading } = useGetAllGalleriesQuery(
+  const { data, isLoading } = useGetManagedGalleriesQuery(
     { limit: 200, organizationId: orgId ?? "" },
     { skip: !orgId },
   );
@@ -248,6 +248,11 @@ export default function OrganizationGalleryPage() {
                   </div>
 
                   <div className="space-y-1">
+                    <Badge
+                      className={`rounded-full px-3 py-1 text-[8px] font-black uppercase border-none ${asset.isPublished ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
+                    >
+                      {asset.isPublished ? "Published" : "Unpublished"}
+                    </Badge>
                     {asset.category && (
                       <Badge
                         className={`rounded-full px-3 py-1 text-[8px] font-black uppercase border-none ${catStyle(asset.category)}`}

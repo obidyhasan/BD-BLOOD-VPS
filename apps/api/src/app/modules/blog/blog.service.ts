@@ -235,8 +235,8 @@ const updateBlog = async (
     where: { id },
     data: {
       ...payload,
-      status: user.role === "ADMIN" ? existing.status : BlogStatus.PENDING,
-      publishedAt: null,
+      status: existing.status,
+      publishedAt: existing.publishedAt,
     },
   });
 };

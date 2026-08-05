@@ -3,6 +3,7 @@ import {
   AccountStatus,
   GovernanceCategory,
   OrganizationMemberStatus,
+  Prisma,
   PositionLevel,
   PositionStatus,
   Role,
@@ -37,6 +38,12 @@ const NORMAL_DONOR_POSITION_NAME = "Normal Donor";
  * `organizationId: null` rather than to some sentinel organization.
  */
 const LEADERSHIP_MEMBER_CAP = 11;
+
+const governanceSeatKey = (
+  organizationId: string | null,
+  category: GovernanceCategory,
+  positionId: string,
+) => `${organizationId ?? "CENTRAL"}:${category}:${positionId}`;
 
 type LeadershipScope = {
   level: PositionLevel;
@@ -229,7 +236,7 @@ const getPublicLeadershipMembers = async (scope: LeadershipScope) => {
       position: true,
       organization: { select: { id: true, name: true } },
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [{ position: { positionOrder: "asc" } }, { joinedAt: "asc" }],
     take: LEADERSHIP_MEMBER_CAP,
   });
 };
@@ -270,7 +277,11 @@ const getPublicOrganizationMembers = async (organizationId: string) => {
       donor: { select: publicMemberDonorSelect },
       position: true,
     },
-    orderBy: { joinedAt: "asc" },
+    orderBy: [
+      { category: "asc" },
+      { position: { positionOrder: "asc" } },
+      { joinedAt: "asc" },
+    ],
     take: LEADERSHIP_MEMBER_CAP * 2,
   });
 };
@@ -458,10 +469,41 @@ const updateMemberStatus = async (
       );
     }
 
-    return tx.organizationMember.update({
-      where: { id: memberId },
-      data: { status },
-    });
+    const seatKey =
+      status === OrganizationMemberStatus.ACTIVE &&
+      (existing.position.level === PositionLevel.EXECUTIVE ||
+        existing.position.level === PositionLevel.MANAGEMENT)
+        ? governanceSeatKey(
+            existing.organizationId,
+            existing.category,
+            existing.positionId,
+          )
+        : null;
+
+    try {
+      return await tx.organizationMember.update({
+        where: { id: memberId },
+        data: {
+          status,
+          seatKey,
+          activatedAt:
+            status === OrganizationMemberStatus.ACTIVE ? new Date() : undefined,
+          endedAt:
+            status === OrganizationMemberStatus.ACTIVE ? null : new Date(),
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ApiError(
+          httpStatus.CONFLICT,
+          "This governance position already has an active occupant in the selected scope.",
+        );
+      }
+      throw error;
+    }
   });
 };
 
@@ -478,7 +520,14 @@ const assignOrganizationMember = async (
     where: { id: payload.donorId, isDeleted: false },
   });
   if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "Donor not found!");
+  if (!donor.isVerified || donor.accountStatus !== AccountStatus.ACTIVE) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "Committee and advisor appointments require an active, verified registered donor.",
+    );
+  }
 
+  const appointingDonor = await getRequesterDonor(user);
   let organizationId: string | null;
 
   if (user.role === Role.ADMIN) {
@@ -486,10 +535,9 @@ const assignOrganizationMember = async (
     // scope (organizationId: null) — see the design note above.
     organizationId = payload.organizationId ?? null;
   } else {
-    const managerDonor = await getRequesterDonor(user);
     const managerMembership = await prisma.organizationMember.findFirst({
       where: {
-        donorId: managerDonor.id,
+        donorId: appointingDonor.id,
         status: OrganizationMemberStatus.ACTIVE,
         isDeleted: false,
       },
@@ -506,8 +554,15 @@ const assignOrganizationMember = async (
       position: { select: { positionName: true, positionStatus: true } },
     },
   });
-  if (existingMembership && !isAutoDonorMembership(existingMembership)) {
-    throw new ApiError(httpStatus.CONFLICT, "Donor is already an organization member!");
+  if (
+    existingMembership &&
+    !isAutoDonorMembership(existingMembership) &&
+    user.role !== Role.ADMIN
+  ) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "Only an Admin can move or reassign an existing governance member.",
+    );
   }
 
   const position = await prisma.organizationPosition.findUnique({
@@ -530,17 +585,32 @@ const assignOrganizationMember = async (
   }
 
   return prisma.$transaction(async (tx) => {
-    if (organizationId && category === GovernanceCategory.ADVISOR) {
-      const organization = await tx.organization.findUnique({
-        where: { id: organizationId, isDeleted: false },
-        select: { level: true },
-      });
-      if (organization?.level === "UPAZILA") {
-        throw new ApiError(
-          httpStatus.CONFLICT,
-          "Upazila organizations do not permit Advisor appointments.",
-        );
-      }
+    const organization = organizationId
+      ? await tx.organization.findUnique({
+          where: { id: organizationId, isDeleted: false },
+          select: { level: true },
+        })
+      : null;
+    if (organizationId && !organization) {
+      throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+    }
+    if (
+      user.role !== Role.ADMIN &&
+      organization?.level !== "UPAZILA"
+    ) {
+      throw new ApiError(
+        httpStatus.FORBIDDEN,
+        "Only an Admin can manage National, Division, and District governance assignments.",
+      );
+    }
+    if (
+      organization?.level === "UPAZILA" &&
+      category === GovernanceCategory.ADVISOR
+    ) {
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "Upazila organizations do not permit Advisor appointments.",
+      );
     }
     const scope = `${organizationId ?? "CENTRAL"}:${category}`;
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
@@ -563,29 +633,46 @@ const assignOrganizationMember = async (
       organizationId,
       positionId: payload.positionId,
       category,
+      seatKey: governanceSeatKey(organizationId, category, payload.positionId),
+      appointedById: appointingDonor.id,
       status: OrganizationMemberStatus.ACTIVE,
+      activatedAt: new Date(),
+      endedAt: null,
       isDeleted: false,
       deletedAt: null,
     };
 
-    return existingMembership
-      ? tx.organizationMember.update({
-          where: { donorId: payload.donorId },
-          data,
-          include: {
-            organization: true,
-            donor: { omit: { password: true }, include: { bloodGroup: true } },
-            position: true,
-          },
-        })
-      : tx.organizationMember.create({
-          data: { ...data, donorId: payload.donorId },
-          include: {
-            organization: true,
-            donor: { omit: { password: true }, include: { bloodGroup: true } },
-            position: true,
-          },
-        });
+    try {
+      return existingMembership
+        ? await tx.organizationMember.update({
+            where: { donorId: payload.donorId },
+            data,
+            include: {
+              organization: true,
+              donor: { omit: { password: true }, include: { bloodGroup: true } },
+              position: true,
+            },
+          })
+        : await tx.organizationMember.create({
+            data: { ...data, donorId: payload.donorId },
+            include: {
+              organization: true,
+              donor: { omit: { password: true }, include: { bloodGroup: true } },
+              position: true,
+            },
+          });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ApiError(
+          httpStatus.CONFLICT,
+          "This governance position already has an active occupant in the selected scope.",
+        );
+      }
+      throw error;
+    }
   });
 };
 
@@ -602,7 +689,13 @@ const leaveOrganization = async (user: IJWTPayload) => {
 
   return prisma.organizationMember.update({
     where: { id: membership.id },
-    data: { isDeleted: true, deletedAt: new Date(), status: OrganizationMemberStatus.REJECTED },
+    data: {
+      isDeleted: true,
+      deletedAt: new Date(),
+      endedAt: new Date(),
+      seatKey: null,
+      status: OrganizationMemberStatus.REJECTED,
+    },
   });
 };
 

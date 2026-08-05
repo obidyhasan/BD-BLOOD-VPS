@@ -7,6 +7,9 @@ export const createGalleryZodSchema = z.object({
   slug: z.string().min(1).optional(),
   coverImage: z.string().url().optional(),
   images: z.array(z.string().url()).min(1, "At least one image is required"),
+  isPublished: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
   // Omitted -> Homepage Gallery item (Admin-only; enforced server-side in
   // assertCanManageGallery). Provided -> Organization Gallery item.
   organizationId: z.string().min(1).optional(),
@@ -19,4 +22,7 @@ export const updateGalleryZodSchema = z.object({
   slug: z.string().min(1).optional(),
   coverImage: z.string().url().optional().nullable(),
   images: z.array(z.string().url()).min(1).optional(),
+  isPublished: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
 });

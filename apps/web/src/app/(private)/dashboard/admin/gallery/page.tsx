@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useGetAllGalleriesQuery,
+  useGetManagedGalleriesQuery,
   useDeleteGalleryMutation,
 } from "@/redux/features/gallery/galleryApi";
 import { mapGalleryItemToAsset } from "@/lib/gallery";
@@ -61,7 +61,7 @@ export default function AdminGalleryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const { data, isLoading } = useGetAllGalleriesQuery({
+  const { data, isLoading } = useGetManagedGalleriesQuery({
     limit: 200,
     scope: "homepage",
   });
@@ -240,6 +240,18 @@ export default function AdminGalleryPage() {
                   </div>
 
                   <div className="space-y-1">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        className={`rounded-full px-3 py-1 text-[8px] font-black uppercase border-none ${asset.isPublished ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
+                      >
+                        {asset.isPublished ? "Published" : "Unpublished"}
+                      </Badge>
+                      {asset.isFeatured && (
+                        <Badge className="rounded-full px-3 py-1 text-[8px] font-black uppercase border-none bg-blue-500/15 text-blue-300">
+                          Featured
+                        </Badge>
+                      )}
+                    </div>
                     {asset.category && (
                       <Badge
                         className={`rounded-full px-3 py-1 text-[8px] font-black uppercase border-none ${catStyle(asset.category)}`}

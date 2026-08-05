@@ -11,6 +11,9 @@ export interface GalleryItem {
   // coverImage matches frontend GalleryAsset.img
   coverImage?: string | null;
   images: string[];
+  isPublished: boolean;
+  isFeatured: boolean;
+  sortOrder: number;
   // null -> Homepage Gallery item (admin-only, not owned by any Organization)
   organizationId: string | null;
   organization?: { id: string; name: string } | null;
@@ -39,6 +42,28 @@ export const galleryApi = baseApi.injectEndpoints({
         }
         const qs = qp.toString();
         return { url: `/galleries${qs ? `?${qs}` : ""}` };
+      },
+      providesTags: ["Gallery"],
+    }),
+
+    getManagedGalleries: builder.query<
+      { success: boolean; meta: object; data: GalleryItem[] },
+      {
+        page?: number;
+        limit?: number;
+        organizationId?: string;
+        scope?: "homepage";
+      }
+    >({
+      query: (params) => {
+        const qp = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            qp.append(key, String(value));
+          }
+        });
+        const qs = qp.toString();
+        return { url: `/galleries/manage${qs ? `?${qs}` : ""}` };
       },
       providesTags: ["Gallery"],
     }),
@@ -93,6 +118,7 @@ export const galleryApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllGalleriesQuery,
+  useGetManagedGalleriesQuery,
   useGetSingleGalleryQuery,
   useGetGalleryBySlugQuery,
   useCreateGalleryMutation,

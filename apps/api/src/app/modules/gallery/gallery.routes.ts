@@ -11,6 +11,11 @@ import {
 const router = Router();
 
 router.get("/", GalleryController.getAllGalleries);
+router.get(
+  "/manage",
+  auth(Role.ADMIN, Role.DONOR),
+  GalleryController.getManagedGalleries,
+);
 router.get("/by-slug/:slug", GalleryController.getGalleryBySlug);
 router.get("/:id", GalleryController.getSingleGallery);
 

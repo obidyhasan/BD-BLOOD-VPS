@@ -1,5 +1,6 @@
 import httpStatus from "http-status";
 import { Request, Response } from "express";
+import ApiError from "../../errors/ApiError";
 import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
 import pick from "../../shared/pick";
@@ -28,7 +29,7 @@ const createGallery = catchAsync(
 const getAllGalleries = catchAsync(async (req: Request, res: Response) => {
   const filters = pick(req.query, ["organizationId", "scope"]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-  const result = await GalleryService.getAllGalleries(filters, options);
+  const result = await GalleryService.getAllGalleries(filters, options, false);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -37,6 +38,36 @@ const getAllGalleries = catchAsync(async (req: Request, res: Response) => {
     meta: result.meta,
   });
 });
+
+const getManagedGalleries = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const filters = pick(req.query, ["organizationId", "scope"]);
+    const organizationId =
+      typeof req.query.organizationId === "string"
+        ? req.query.organizationId
+        : undefined;
+    if (req.user?.role !== "ADMIN" && !organizationId) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Organization ID is required for organization gallery management",
+      );
+    }
+    await assertCanManageGallery(
+      req.user as IJWTPayload,
+      undefined,
+      organizationId,
+    );
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+    const result = await GalleryService.getAllGalleries(filters, options, true);
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Managed galleries retrieved successfully!",
+      data: result.data,
+      meta: result.meta,
+    });
+  },
+);
 
 const getGalleryBySlug = catchAsync(async (req: Request, res: Response) => {
   const result = await GalleryService.getGalleryBySlug(req.params.slug);
@@ -87,6 +118,7 @@ const deleteGallery = catchAsync(
 export const GalleryController = {
   createGallery,
   getAllGalleries,
+  getManagedGalleries,
   getGalleryBySlug,
   getSingleGallery,
   updateGallery,

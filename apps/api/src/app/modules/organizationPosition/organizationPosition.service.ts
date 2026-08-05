@@ -5,15 +5,20 @@ import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 
-const createPosition = async (payload: any) => {
-  return prisma.organizationPosition.create({
-    data: {
-      positionName: payload.positionName,
-      positionOrder: payload.positionOrder,
-      level: payload.level ?? "SUPPORT",
-      positionStatus: payload.positionStatus ?? "ACTIVE",
+const createPosition = async (payload: Prisma.OrganizationPositionCreateInput) => {
+  const duplicate = await prisma.organizationPosition.findFirst({
+    where: {
+      positionName: { equals: payload.positionName, mode: "insensitive" },
+      level: payload.level,
+      isDeleted: false,
     },
+    select: { id: true },
   });
+  if (duplicate) {
+    throw new ApiError(httpStatus.CONFLICT, "Organization position already exists!");
+  }
+
+  return prisma.organizationPosition.create({ data: payload });
 };
 
 const getAllPositions = async (params: IGenericFilters, options: IOptions) => {
@@ -59,6 +64,30 @@ const updatePosition = async (
     );
   }
 
+  if (
+    payload.positionName !== undefined ||
+    payload.level !== undefined
+  ) {
+    const positionName =
+      typeof payload.positionName === "string"
+        ? payload.positionName
+        : existing.positionName;
+    const level =
+      typeof payload.level === "string" ? payload.level : existing.level;
+    const duplicate = await prisma.organizationPosition.findFirst({
+      where: {
+        id: { not: id },
+        positionName: { equals: positionName, mode: "insensitive" },
+        level,
+        isDeleted: false,
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ApiError(httpStatus.CONFLICT, "Organization position already exists!");
+    }
+  }
+
   return prisma.organizationPosition.update({
     where: { id },
     data: payload,
@@ -73,6 +102,20 @@ const deletePosition = async (id: string) => {
     throw new ApiError(
       httpStatus.NOT_FOUND,
       "Organization position not found!",
+    );
+  }
+
+  const activeOccupants = await prisma.organizationMember.count({
+    where: {
+      positionId: id,
+      isDeleted: false,
+      status: "ACTIVE",
+    },
+  });
+  if (activeOccupants > 0) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "Cannot delete a position while it has active occupants.",
     );
   }
 

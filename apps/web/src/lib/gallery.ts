@@ -8,6 +8,9 @@ export type GalleryAssetUI = {
   date: string;
   img: string;
   description?: string;
+  isPublished: boolean;
+  isFeatured: boolean;
+  sortOrder: number;
 };
 
 export function mapGalleryItemToAsset(item: GalleryItem): GalleryAssetUI {
@@ -22,5 +25,8 @@ export function mapGalleryItemToAsset(item: GalleryItem): GalleryAssetUI {
     }),
     img: item.coverImage ?? item.images[0] ?? "",
     description: item.description ?? undefined,
+    isPublished: item.isPublished,
+    isFeatured: item.isFeatured,
+    sortOrder: item.sortOrder,
   };
 }

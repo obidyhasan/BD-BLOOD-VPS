@@ -21,6 +21,7 @@ import {
   Droplets,
 } from "lucide-react";
 import WorkCard from "@/components/modules/Home/OurWork/WorkCard";
+import GalleryCard from "@/components/modules/Gallery/GalleryCard";
 import BloodInventory from "./BloodInventory";
 import { useMemo } from "react";
 import {
@@ -28,7 +29,9 @@ import {
   useGetPublicOrganizationMembersQuery,
 } from "@/redux/features/organizations/organizationsApi";
 import { useGetPublicPostsQuery } from "@/redux/features/posts/postsApi";
+import { useGetAllGalleriesQuery } from "@/redux/features/gallery/galleryApi";
 import { mapApiPostToLegacy } from "@/lib/post";
+import { mapGalleryItemToAsset } from "@/lib/gallery";
 import type {
   Organization,
   OrganizationMember,
@@ -62,6 +65,15 @@ const PublicOrganizationProfile = ({
     { skip: !organization?.id || !!initialPosts?.length },
   );
 
+  const { data: galleriesData, isLoading: galleriesLoading } =
+    useGetAllGalleriesQuery(
+      {
+        organizationId: organization?.id,
+        limit: 12,
+      },
+      { skip: !organization?.id },
+    );
+
   const members = useMemo(
     () =>
       (membersData?.data ?? initialMembers ?? []).map((m) => ({
@@ -80,10 +92,16 @@ const PublicOrganizationProfile = ({
     [postsData, initialPosts, organization?.name],
   );
 
+  const galleryAssets = useMemo(
+    () => (galleriesData?.data ?? []).map(mapGalleryItemToAsset),
+    [galleriesData?.data],
+  );
+
   const loading =
     (orgsLoading && !initialOrganization) ||
     (membersLoading && !initialMembers?.length) ||
-    (postsLoading && !initialPosts?.length);
+    (postsLoading && !initialPosts?.length) ||
+    galleriesLoading;
 
   if (!organization && !orgsLoading && !initialOrganization) {
     return (
@@ -270,6 +288,31 @@ const PublicOrganizationProfile = ({
             </Carousel>
           </div>
         </section>
+
+        {(galleryAssets.length > 0 || galleriesLoading) && (
+          <section className="space-y-8 pt-10">
+            <div className="space-y-2 px-2 text-center md:text-left">
+              <h3 className="text-2xl md:text-4xl font-black text-foreground tracking-tighter uppercase">
+                Organization <span className="text-primary">Gallery</span>
+              </h3>
+              <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+                Published moments managed by this organization.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {galleriesLoading
+                ? Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="aspect-[4/5] animate-pulse rounded-[2.5rem] bg-zinc-100 dark:bg-zinc-800"
+                  />
+                ))
+                : galleryAssets.map((asset) => (
+                  <GalleryCard key={asset.id} asset={asset} />
+                ))}
+            </div>
+          </section>
+        )}
 
         {/* Elite Command Section */}
         <div className="space-y-10">
