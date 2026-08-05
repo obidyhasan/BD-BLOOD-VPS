@@ -50,7 +50,13 @@ export interface MedicalAd {
   title: string;
   imageUrl: string;
   institutionId: string;
-  institution?: { name: string; slug?: string | null };
+  institution?: {
+    id: string;
+    name: string;
+    slug?: string | null;
+    phone: string;
+    address: string;
+  };
   redirectUrl?: string | null;
   startDate: string;
   endDate: string;
@@ -214,7 +220,7 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
 
     // Medical advertisements
     getPublicAds: builder.query<{ success: boolean; data: MedicalAd[] }, void>({
-      query: () => ({ url: "/medical-advertisements" }),
+      query: () => ({ url: "/medical-advertisements?limit=8" }),
       providesTags: ["MedicalAds"],
     }),
 

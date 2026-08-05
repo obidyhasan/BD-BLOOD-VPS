@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Droplets, HeartPulse, Home, Hospital, User } from "lucide-react";
+import { Bell, Building2, HeartPulse, Home, Hospital, User } from "lucide-react";
 import { motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAppSelector } from "@/redux/hooks";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 const bottomNavItems = [
   { label: "Home", icon: Home, href: "/" },
-  { label: "Donors", icon: Droplets, href: "/donor" },
+  { label: "Organizations", icon: Building2, href: "/organization" },
   { label: "Medical", icon: Hospital, href: "/medical" },
   { label: "Requests", icon: HeartPulse, href: "/donor/post" },
   { label: "Account", icon: User, href: "/dashboard/donor", isAccount: true },

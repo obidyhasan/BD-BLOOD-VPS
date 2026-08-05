@@ -38,7 +38,7 @@ export default function MedicalAds({ initialAds }: MedicalAdsProps) {
       <div className="py-10 max-w-7xl mx-auto px-6">
         <Carousel
           carouselData={ads}
-          showDots={true}
+          showDots={false}
           height={{
             mobile: "h-[300px]",
             tablet: "md:h-[350px]",

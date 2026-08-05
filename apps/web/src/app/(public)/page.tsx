@@ -9,26 +9,21 @@ import CommitteeSection from "@/components/modules/Home/CommitteeSection/Committ
 import GallerySection from "@/components/modules/Home/GallerySection/GallerySection";
 import { getPublicStats } from "@/services/analytics";
 import { getPublicBlogs } from "@/services/blog";
-import { getPublicPosts } from "@/services/post";
+import { getHomepagePosts } from "@/services/post";
 import { getAllGalleries } from "@/services/gallery";
 import { getFaqs } from "@/services/faq";
 import { getMedicalAds } from "@/services/medicalInstitution";
-import { GEO_ORGANIZATION_TYPES } from "@/lib/organizationGeo";
-import {
-  getAllOrganizations,
-  getPublicLeadershipMembers,
-} from "@/services/organization";
+import { getPublicLeadershipMembers } from "@/services/organization";
 import { getDivisions } from "@/services/location";
 
 export default async function HomePage() {
   const [
     statsRes,
     blogsRes,
-    worksRes,
+    homepagePostsRes,
     galleriesRes,
     faqsRes,
     adsRes,
-    orgsRes,
     divisionsRes,
     leadershipRes,
   ] = await Promise.all([
@@ -39,16 +34,10 @@ export default async function HomePage() {
       sortBy: "created_at",
       sortOrder: "desc",
     }),
-    getPublicPosts({ isWork: true, approvalStatus: "APPROVED", limit: 6 }),
+    getHomepagePosts(),
     getAllGalleries({ limit: 3, scope: "homepage" }),
     getFaqs({ active: true, limit: 12, sortBy: "order", sortOrder: "asc" }),
-    getMedicalAds(),
-    getAllOrganizations({
-      limit: 8,
-      verificationStatus: "VERIFIED",
-      organizationStatus: "ACTIVE",
-      type: GEO_ORGANIZATION_TYPES.division,
-    }),
+    getMedicalAds({ limit: 8 }),
     getDivisions(),
     getPublicLeadershipMembers({ level: "EXECUTIVE" }),
   ]);
@@ -59,9 +48,9 @@ export default async function HomePage() {
         initialStats={statsRes?.data ?? null}
         initialDivisions={divisionsRes?.data ?? []}
       />
-      <OurWork initialPosts={worksRes?.data ?? []} />
+      <OurWork initialPosts={homepagePostsRes?.data?.successHistory ?? []} />
       <MedicalAds initialAds={adsRes?.data ?? []} />
-      <CommitteeSection initialOrganizations={orgsRes?.data ?? []} />
+      <CommitteeSection initialPosts={homepagePostsRes?.data?.donorPosts ?? []} />
       <OurBlogs initialBlogs={blogsRes?.data ?? []} />
       <OurTeam initialMembers={leadershipRes?.data ?? []} />
       <GallerySection initialGalleries={galleriesRes?.data ?? []} />

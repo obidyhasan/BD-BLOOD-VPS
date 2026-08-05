@@ -118,13 +118,13 @@ const WorkCard = ({ post, isAdmin, onToggleWork }: WorkCardProps) => {
             <div className="flex items-center gap-2 group/stat cursor-pointer hover:text-rose-500 transition-colors">
               <Heart className="size-4 group-hover/stat:fill-rose-500" />
               <span className="text-[10px] font-black ">
-                1.4k
+                {post.likeCount ?? 0}
               </span>
             </div>
             <div className="flex items-center gap-2 group/stat cursor-pointer hover:text-primary transition-colors">
               <MessageCircle className="size-4" />
               <span className="text-[10px] font-black ">
-                240
+                {post.commentCount ?? 0}
               </span>
             </div>
           </div>

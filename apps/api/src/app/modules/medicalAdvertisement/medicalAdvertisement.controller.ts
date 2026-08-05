@@ -23,7 +23,10 @@ const createAd = catchAsync(
 
 const getAllAdsPublic = catchAsync(async (req: Request, res: Response) => {
   const filters = pick(req.query, ["institutionId"]);
-  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const options = {
+    ...pick(req.query, ["page", "sortBy", "sortOrder"]),
+    limit: Math.min(Math.max(Number(req.query.limit) || 8, 1), 12),
+  };
   const result = await MedicalAdvertisementService.getAllAds(
     filters,
     options,

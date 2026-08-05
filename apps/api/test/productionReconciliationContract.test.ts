@@ -55,7 +55,8 @@ test("homepage national team and organization notices use dynamic authoritative 
 
   assert.match(home, /getPublicLeadershipMembers\(\{ level: "EXECUTIVE" \}\)/);
   assert.doesNotMatch(home, /getPublicDonors/);
-  assert.match(team, /National Committee/);
+  assert.match(team, /Who's Behind/);
+  assert.match(team, /members\.slice\(0, 11\)/);
   assert.match(team, /member\.position\.positionName/);
   assert.match(profile, /works\.slice\(0, 5\)/);
   assert.doesNotMatch(profile, /Next Committee Meeting: Sunday/);

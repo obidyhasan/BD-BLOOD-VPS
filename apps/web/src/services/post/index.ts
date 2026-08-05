@@ -4,6 +4,21 @@ import { serverFetch } from "@/helper/server-fetch";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache";
 
+export const getHomepagePosts = async () => {
+  try {
+    const res = await serverFetch.get(
+      "/posts/homepage?successLimit=6&donorLimit=8",
+      { cache: "no-store" },
+    );
+    return res.json();
+  } catch {
+    return {
+      success: false,
+      data: { successHistory: [], donorPosts: [] },
+    };
+  }
+};
+
 export const getPublicPosts = async (
   params?: Record<string, string | number | boolean | undefined>,
 ) => {

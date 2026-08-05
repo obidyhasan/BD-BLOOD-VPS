@@ -71,6 +71,7 @@ export interface PublicStats {
   donorsAvailable: number;
   fulfilledRequests: number;
   pendingRequests: number;
+  totalRequests: number;
   verifiedOrganizations: number;
   worksCount: number;
   donationsTotal: number;

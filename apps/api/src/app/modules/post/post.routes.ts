@@ -50,6 +50,7 @@ router.get(
 );
 
 // Public feed (approved only)
+router.get("/homepage", PostController.getHomepagePosts);
 router.get("/", PostController.getAllPostsPublic);
 router.get("/by-slug/:slug", PostController.getPostBySlug);
 router.get("/:id/comments", PostController.getPostComments);

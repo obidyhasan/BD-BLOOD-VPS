@@ -36,6 +36,8 @@ export type AdUI = {
   medicalSlug: string;
   title: string;
   description: string;
+  phone: string;
+  address: string;
   bannerImage: string;
   ctaText: string;
   status: "Active" | "Paused";
@@ -79,10 +81,12 @@ export function mapAdToUI(ad: MedicalAd): AdUI {
     medicalId: ad.institutionId,
     medicalName: instName,
     medicalSlug: instSlug,
-    title: ad.title,
-    description: instName,
+    title: instName,
+    description: ad.title,
+    phone: ad.institution?.phone ?? "",
+    address: ad.institution?.address ?? "",
     bannerImage: ad.imageUrl,
-    ctaText: "Learn More",
+    ctaText: "Visit Medical",
     status: ad.status === "ACTIVE" ? "Active" : "Paused",
     division: "",
     district: "",

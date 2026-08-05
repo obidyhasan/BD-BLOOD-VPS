@@ -53,6 +53,36 @@ const getCreatorId = async (user?: IJWTPayload) => {
   return donor.id;
 };
 
+const shuffle = <T>(items: T[]) => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+};
+
+const publicAdSelect = {
+  id: true,
+  title: true,
+  imageUrl: true,
+  institutionId: true,
+  redirectUrl: true,
+  startDate: true,
+  endDate: true,
+  status: true,
+  createdAt: true,
+  institution: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      phone: true,
+      address: true,
+    },
+  },
+} satisfies Prisma.MedicalAdvertisementSelect;
+
 const getAllAds = async (params: IGenericFilters, options: IOptions, onlyActive = false) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
@@ -73,6 +103,24 @@ const getAllAds = async (params: IGenericFilters, options: IOptions, onlyActive 
       : {}),
   };
 
+  const totalPromise = prisma.medicalAdvertisement.count({
+    where: whereConditions,
+  });
+
+  if (onlyActive) {
+    const [result, total] = await Promise.all([
+      prisma.medicalAdvertisement.findMany({
+        skip,
+        take: limit,
+        where: whereConditions,
+        orderBy: { [sortBy]: sortOrder },
+        select: publicAdSelect,
+      }),
+      totalPromise,
+    ]);
+    return { meta: { page, limit, total }, data: shuffle(result) };
+  }
+
   const [result, total] = await Promise.all([
     prisma.medicalAdvertisement.findMany({
       skip,
@@ -81,23 +129,27 @@ const getAllAds = async (params: IGenericFilters, options: IOptions, onlyActive 
       orderBy: { [sortBy]: sortOrder },
       include: { institution: true },
     }),
-    prisma.medicalAdvertisement.count({
-      where: whereConditions,
-    }),
+    totalPromise,
   ]);
-
   return { meta: { page, limit, total }, data: result };
 };
 
 const getSingleAd = async (id: string, onlyActive = false) => {
-  return prisma.medicalAdvertisement.findUniqueOrThrow({
-    where: {
-      id,
-      isDeleted: false,
-      ...(onlyActive ? { status: AdStatus.ACTIVE } : {}),
-    },
-    include: { institution: true },
-  });
+  const where = {
+    id,
+    isDeleted: false,
+    ...(onlyActive ? { status: AdStatus.ACTIVE } : {}),
+  };
+
+  return onlyActive
+    ? prisma.medicalAdvertisement.findUniqueOrThrow({
+        where,
+        select: publicAdSelect,
+      })
+    : prisma.medicalAdvertisement.findUniqueOrThrow({
+        where,
+        include: { institution: true },
+      });
 };
 
 const updateAd = async (

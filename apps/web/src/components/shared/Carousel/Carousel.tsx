@@ -15,6 +15,8 @@ type CarouselSlide = {
   id: string;
   title: string;
   description?: string;
+  phone?: string;
+  address?: string;
   bannerImage?: string;
   ctaText?: string;
   medicalSlug?: string;
@@ -77,8 +79,8 @@ const Carousel = ({
     customPaging: (i: number) => (
       <div
         className={`transition-all duration-500 cursor-pointer ${i === currentSlide
-            ? "w-10 h-2.5 bg-primary rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-            : "w-2.5 h-2.5 bg-foreground/20 hover:bg-foreground/40 rounded-full"
+          ? "w-10 h-2.5 bg-primary rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+          : "w-2.5 h-2.5 bg-foreground/20 hover:bg-foreground/40 rounded-full"
           }`}
       />
     ),
@@ -178,9 +180,29 @@ const Carousel = ({
                       </motion.p>
 
                       <motion.div
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.5 }}
+                        className="space-y-1 text-sm font-semibold text-foreground/80"
+                      >
+                        {slide.phone && (
+                          <p className="break-words">
+                            <span className="font-black text-primary">Phone:</span>{" "}
+                            {slide.phone}
+                          </p>
+                        )}
+                        {slide.address && (
+                          <p className="line-clamp-2 break-words">
+                            <span className="font-black text-primary">Address:</span>{" "}
+                            {slide.address}
+                          </p>
+                        )}
+                      </motion.div>
+
+                      <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.8, delay: 0.6 }}
+                        transition={{ duration: 0.8, delay: 0.7 }}
                       >
                         <Link
                           href={

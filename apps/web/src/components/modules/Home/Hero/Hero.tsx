@@ -9,8 +9,11 @@ import {
 } from "@/components/ui/select";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Search, Plus } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import type { Settings } from "react-slick";
+import "slick-carousel/slick/slick.css";
 
 import { heroContent, formatStatCount } from "@/lib/siteContent";
 import { useGetPublicStatsQuery } from "@/redux/features/analytics/analyticsApi";
@@ -21,9 +24,29 @@ import {
   useGetUpazilasQuery,
 } from "@/redux/features/location/locationApi";
 import type { Division } from "@/redux/features/location/locationApi";
-import { useState, useMemo } from "react";
-import { useGetAllOrganizationsQuery } from "@/redux/features/organizations/organizationsApi";
-import { buildLocationOrgQueryParams } from "@/lib/organizationGeo";
+import { useState } from "react";
+import { useGetCanonicalOrganizationByUpazilaQuery } from "@/redux/features/organizations/organizationsApi";
+
+const TextSlider = dynamic(() => import("react-slick"), { ssr: false });
+
+const heroMessages = [
+  heroContent.description,
+  "Connecting verified donors with people who need blood.",
+  "Coordinating faster blood support across Bangladesh.",
+];
+
+const textSliderSettings: Settings = {
+  arrows: false,
+  dots: false,
+  infinite: true,
+  autoplay: true,
+  autoplaySpeed: 4200,
+  speed: 700,
+  slidesToShow: 1,
+  slidesToScroll: 1,
+  pauseOnHover: false,
+  accessibility: true,
+};
 
 type HeroProps = {
   initialStats?: PublicStats | null;
@@ -56,38 +79,25 @@ const Hero = ({ initialStats, initialDivisions }: HeroProps) => {
     ? [
       { value: formatStatCount(stats.donorsTotal), label: "Verified Donors" },
       { value: formatStatCount(stats.worksCount), label: "Success Stories" },
-      {
-        value: formatStatCount(stats.upazilasCovered),
-        label: "Upazila Covered",
-      },
+      { value: formatStatCount(stats.totalRequests), label: "Total Requests" },
     ]
     : [
       { value: "—", label: "Verified Donors" },
       { value: "—", label: "Success Stories" },
-      { value: "—", label: "Upazila Covered" },
+      { value: "—", label: "Total Requests" },
     ];
 
-  const orgQueryParams = useMemo(
-    () =>
-      divisionId || districtId || upazilaId
-        ? buildLocationOrgQueryParams({
-          divisionId,
-          districtId,
-          upazilaId,
-          limit: 1,
-        })
-        : null,
-    [divisionId, districtId, upazilaId],
-  );
-
+  const locationComplete = !!divisionId && !!districtId && !!upazilaId;
   const { data: orgData, isFetching: orgFetching } =
-    useGetAllOrganizationsQuery(orgQueryParams!, { skip: !orgQueryParams });
+    useGetCanonicalOrganizationByUpazilaQuery(upazilaId, {
+      skip: !locationComplete,
+    });
 
-  const matchedOrg = orgData?.data?.[0];
+  const matchedOrg = orgData?.data;
   const searchHref = matchedOrg
     ? `/organization/${matchedOrg.id}`
     : "/organization";
-  const canSearch = !!divisionId && !!matchedOrg && !orgFetching;
+  const canSearch = locationComplete && !!matchedOrg && !orgFetching;
 
   return (
     <section className="max-w-7xl mx-auto relative w-full  py-10 mt-17">
@@ -128,14 +138,24 @@ const Hero = ({ initialStats, initialDivisions }: HeroProps) => {
                 </span>
               </motion.h1>
 
-              <motion.p
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="max-w-2xl text-md md:text-lg text-muted-foreground leading-relaxed font-semibold  border-l-4 border-primary/20 pl-4"
+                className="max-w-2xl min-h-14 border-l-4 border-primary/20 pl-4 overflow-hidden"
+                aria-label="BD Blood messages"
               >
-                &quot;{heroContent.description}&quot;
-              </motion.p>
+                <TextSlider {...textSliderSettings}>
+                  {heroMessages.map((message) => (
+                    <p
+                      key={message}
+                      className="pr-3 text-md md:text-lg text-muted-foreground leading-relaxed font-semibold"
+                    >
+                      {message}
+                    </p>
+                  ))}
+                </TextSlider>
+              </motion.div>
             </div>
 
             <motion.div
@@ -307,7 +327,9 @@ const Hero = ({ initialStats, initialDivisions }: HeroProps) => {
                       >
                         {orgFetching
                           ? "Finding Organization..."
-                          : "Select Division to Search"}
+                          : locationComplete
+                            ? "Organization Unavailable"
+                            : "Select Division, District & Upazila"}
                         <Search className="ml-3 size-5 opacity-50" />
                       </Button>
                     )}

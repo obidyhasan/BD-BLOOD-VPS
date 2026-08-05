@@ -16,8 +16,8 @@ export default function OurTeam({ initialMembers = [] }: OurTeamProps) {
     <section id="team" className="py-10 md:py-16 bg-white dark:bg-zinc-950">
       <div className="max-w-7xl mx-auto px-6">
         <SectionHeader
-          title="National Committee"
-          subtitle="The appointed national committee coordinating the BD Blood network."
+          title="Who's Behind"
+          subtitle="The top appointed members coordinating the BD Blood network."
         />
 
         {members.length === 0 ? (
@@ -31,7 +31,7 @@ export default function OurTeam({ initialMembers = [] }: OurTeamProps) {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {members.map((member, i) => (
+            {members.slice(0, 11).map((member, i) => (
               <motion.div
                 key={member.id}
                 initial={{ opacity: 0, y: 10 }}

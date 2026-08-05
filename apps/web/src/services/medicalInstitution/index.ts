@@ -249,6 +249,7 @@ export const getMedicalAds = async (
     const qs = q.toString();
     const res = await serverFetch.get(
       `/medical-advertisements${qs ? `?${qs}` : ""}`,
+      { cache: "no-store" },
     );
     return res.json();
   } catch {

@@ -79,6 +79,19 @@ const getMyPostBySlug = catchAsync(
   },
 );
 
+const getHomepagePosts = catchAsync(async (req: Request, res: Response) => {
+  const successLimit = Number(req.query.successLimit) || 6;
+  const donorLimit = Number(req.query.donorLimit) || 8;
+  const result = await PostService.getHomepagePosts(successLimit, donorLimit);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Homepage posts retrieved successfully!",
+    data: result,
+  });
+});
+
 const getAllPostsPublic = catchAsync(async (req: Request, res: Response) => {
   const filters = pick(req.query, postFilterableFields);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
@@ -279,6 +292,7 @@ const deletePost = catchAsync(
 
 export const PostController = {
   createPost,
+  getHomepagePosts,
   getPostEligibility,
   getMyPosts,
   getMyPostBySlug,

@@ -45,6 +45,90 @@ const uniquePostSlug = async (title: string, excludeId?: string) => {
   return slug;
 };
 
+const HOMEPAGE_LIMIT_MAX = 12;
+
+const homepagePostSelect = {
+  id: true,
+  donorId: true,
+  organizationId: true,
+  donationId: true,
+  postType: true,
+  visibility: true,
+  isWork: true,
+  title: true,
+  content: true,
+  images: true,
+  approvalStatus: true,
+  slug: true,
+  createdAt: true,
+  updatedAt: true,
+  donor: {
+    select: {
+      id: true,
+      slug: true,
+      fullName: true,
+      profilePhoto: true,
+      bloodGroup: { select: { groupName: true } },
+      affiliations: {
+        where: {
+          active: true,
+          organization: {
+            isDeleted: false,
+            organizationStatus: "ACTIVE",
+            verificationStatus: VerificationStatus.VERIFIED,
+          },
+        },
+        take: 1,
+        select: {
+          organization: { select: { id: true, name: true } },
+        },
+      },
+    },
+  },
+  organization: { select: { id: true, name: true } },
+  _count: { select: { likes: true, comments: true } },
+} satisfies Prisma.PostSelect;
+
+const shuffle = <T>(items: T[]) => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+};
+
+const getRandomPosts = async (
+  where: Prisma.PostWhereInput,
+  requestedLimit: number,
+) => {
+  const limit = Math.min(Math.max(requestedLimit, 1), HOMEPAGE_LIMIT_MAX);
+  const total = await prisma.post.count({ where });
+  if (total === 0) return [];
+
+  const windowSize = Math.min(total, limit * 3);
+  const maxSkip = Math.max(total - windowSize, 0);
+  const skip = maxSkip > 0 ? Math.floor(Math.random() * (maxSkip + 1)) : 0;
+  const posts = await prisma.post.findMany({
+    where,
+    skip,
+    take: windowSize,
+    orderBy: { createdAt: "desc" },
+    select: homepagePostSelect,
+  });
+
+  return shuffle(posts)
+    .slice(0, limit)
+    .map(({ donor, organization, ...post }) => {
+      const { affiliations, ...publicDonor } = donor;
+      return {
+        ...post,
+        donor: publicDonor,
+        organization: organization ?? affiliations[0]?.organization ?? null,
+      };
+    });
+};
+
 const toPublicPost = <
   T extends { donor: Record<string, unknown> },
 >(post: T) => {
@@ -213,6 +297,60 @@ const coerceFilterValue = (key: string, value: unknown): unknown => {
     if (value === "false" || value === "0") return false;
   }
   return value;
+};
+
+const getHomepagePosts = async (successLimit = 6, donorLimit = 8) => {
+  const publicBase: Prisma.PostWhereInput = {
+    isDeleted: false,
+    approvalStatus: ApprovalStatus.APPROVED,
+    visibility: PostVisibility.PUBLIC,
+    donor: {
+      isDeleted: false,
+      accountStatus: AccountStatus.ACTIVE,
+    },
+  };
+
+  const [successHistory, donorPosts] = await Promise.all([
+    getRandomPosts(
+      {
+        ...publicBase,
+        OR: [
+          { donor: { role: Role.ADMIN } },
+          {
+            organization: {
+              isDeleted: false,
+              organizationStatus: "ACTIVE",
+              verificationStatus: VerificationStatus.VERIFIED,
+            },
+          },
+        ],
+      },
+      successLimit,
+    ),
+    getRandomPosts(
+      {
+        ...publicBase,
+        postType: { in: PERSONAL_DONATION_POST_TYPES },
+        donor: {
+          isDeleted: false,
+          accountStatus: AccountStatus.ACTIVE,
+          affiliations: {
+            some: {
+              active: true,
+              organization: {
+                isDeleted: false,
+                organizationStatus: "ACTIVE",
+                verificationStatus: VerificationStatus.VERIFIED,
+              },
+            },
+          },
+        },
+      },
+      donorLimit,
+    ),
+  ]);
+
+  return { successHistory, donorPosts };
 };
 
 const getAllPosts = async (params: IGenericFilters, options: IOptions, onlyApproved = false) => {
@@ -715,6 +853,7 @@ const deletePost = async (user: IJWTPayload, id: string) => {
 
 export const PostService = {
   createPost,
+  getHomepagePosts,
   getPostEligibility,
   getMyPosts,
   getMyPostBySlug,

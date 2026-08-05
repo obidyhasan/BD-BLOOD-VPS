@@ -251,7 +251,11 @@ const serverFetchHelper = async (
   };
 
   if (method === "GET") {
-    if (isPrivateEndpoint(endpoint) || !isPublicEndpoint(endpoint)) {
+    if (
+      fetchOptions.cache === "no-store" ||
+      isPrivateEndpoint(endpoint) ||
+      !isPublicEndpoint(endpoint)
+    ) {
       fetchOptions.cache = "no-store";
     } else {
       (

@@ -141,7 +141,6 @@ export const navLinks: NavLink[] = [
   { label: "Home", href: "/", isExternal: true },
   { label: "Organization", href: "/organization", isExternal: true },
   { label: "Medical", href: "/medical", isExternal: true },
-  { label: "Donor", href: "/donor", isExternal: true },
   { label: "Blog", href: "/blog", isExternal: true },
   { label: "Event", href: "/event", isExternal: true },
   { label: "Gallery", href: "/gallery", isExternal: true },
@@ -153,7 +152,6 @@ export const footerSectionsData = [
     links: [
       { title: "Organization", href: "/organization" },
       { title: "Medical", href: "/medical" },
-      { title: "Donor", href: "/donor" },
       { title: "Blog", href: "/blog" },
       { title: "Event", href: "/event" },
       { title: "Gallery", href: "/gallery" },

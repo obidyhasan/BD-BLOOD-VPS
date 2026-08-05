@@ -27,10 +27,12 @@ const getPlatformStats = async () =>
     async () => {
       const [
         totalDonors,
+        verifiedDonors,
         availableDonors,
         totalOrganizations,
         verifiedOrganizations,
         totalBloodRequests,
+        successfulRequests,
         fulfilledRequests,
         totalDonations,
         verifiedDonations,
@@ -50,6 +52,13 @@ const getPlatformStats = async () =>
           where: {
             isDeleted: false,
             accountStatus: AccountStatus.ACTIVE,
+            isVerified: true,
+          },
+        }),
+        prisma.donor.count({
+          where: {
+            isDeleted: false,
+            accountStatus: AccountStatus.ACTIVE,
             availabilityStatus: AvailabilityStatus.AVAILABLE,
           },
         }),
@@ -60,6 +69,14 @@ const getPlatformStats = async () =>
         }),
         // Blood requests
         prisma.bloodRequest.count({ where: { isDeleted: false } }),
+        prisma.bloodRequest.count({
+          where: {
+            isDeleted: false,
+            status: {
+              in: [BloodRequestStatus.FULFILLED, BloodRequestStatus.COMPLETED],
+            },
+          },
+        }),
         prisma.bloodRequest.count({
           where: { isDeleted: false, status: BloodRequestStatus.FULFILLED },
         }),
@@ -93,6 +110,7 @@ const getPlatformStats = async () =>
       return {
         donors: {
           total: totalDonors,
+          verified: verifiedDonors,
           available: availableDonors,
           unavailable: totalDonors - availableDonors,
         },
@@ -103,6 +121,7 @@ const getPlatformStats = async () =>
         },
         bloodRequests: {
           total: totalBloodRequests,
+          successful: successfulRequests,
           fulfilled: fulfilledRequests,
           pending: totalBloodRequests - fulfilledRequests,
           fulfilmentRate,
@@ -301,12 +320,13 @@ const getActivityFeed = async (limit = 20, organizationId?: string): Promise<Act
 const getPublicStats = async () => {
   const platform = await getPlatformStats();
   return {
-    donorsTotal: platform.donors.total,
+    donorsTotal: platform.donors.verified,
     donorsAvailable: platform.donors.available,
     fulfilledRequests: platform.bloodRequests.fulfilled,
     pendingRequests: platform.bloodRequests.pending,
+    totalRequests: platform.bloodRequests.total,
     verifiedOrganizations: platform.organizations.verified,
-    worksCount: platform.content.works,
+    worksCount: platform.bloodRequests.successful,
     donationsTotal: platform.donations.total,
     districtsCovered: platform.geo.districts,
     upazilasCovered: platform.geo.upazilas,
