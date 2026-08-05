@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
 import auth from "../../middlewares/auth";
+import { orgMemberAccess } from "../../middlewares/orgAccess";
 import validateRequest from "../../middlewares/validateRequest";
 import { OrganizationController } from "./organization.controller";
 import {
@@ -26,7 +27,18 @@ router.post(
 );
 
 router.get("/", OrganizationController.getAllOrganizations);
+router.get("/tree", OrganizationController.getOrganizationTree);
+router.get(
+  "/by-upazila/:upazilaId",
+  OrganizationController.getCanonicalOrganizationByUpazila,
+);
 router.get("/by-slug/:slug", OrganizationController.getOrganizationBySlug);
+router.get(
+  "/:organizationId/donors",
+  auth(Role.ADMIN, Role.DONOR),
+  orgMemberAccess("params"),
+  OrganizationController.getAffiliatedDonors,
+);
 router.get("/:id", OrganizationController.getSingleOrganization);
 
 router.patch(

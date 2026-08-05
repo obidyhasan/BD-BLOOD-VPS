@@ -71,6 +71,24 @@ services:
     # ports:
     #   - "127.0.0.1:5000:5000"
 
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["npm", "run", "start:worker"]
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env.production
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
   web:
     build:
       context: .

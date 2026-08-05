@@ -87,6 +87,30 @@ const rejectRequest = async (
     if (request.status === BloodRequestStatus.REJECTED) return request;
     assertRequestTransition(request.status, BloodRequestStatus.REJECTED);
 
+    const actionableAssignments = await tx.requestAssignment.findMany({
+      where: {
+        requestId,
+        isDeleted: false,
+        status: RequestAssignmentStatus.NOTIFIED,
+      },
+      select: { id: true },
+    });
+    const actionableAssignmentIds = actionableAssignments.map(({ id }) => id);
+    await tx.requestAssignment.updateMany({
+      where: { id: { in: actionableAssignmentIds } },
+      data: { status: RequestAssignmentStatus.CANCELLED, cancelledAt: new Date() },
+    });
+    if (actionableAssignmentIds.length) {
+      await tx.notification.updateMany({
+        where: {
+          isDeleted: false,
+          relatedType: "REQUEST_ASSIGNMENT",
+          relatedId: { in: actionableAssignmentIds },
+        },
+        data: { isRead: true },
+      });
+    }
+
     const updated = await tx.bloodRequest.update({
       where: { id: requestId },
       data: {
@@ -125,16 +149,35 @@ const cancelRequest = async (
     if (request.status === BloodRequestStatus.CANCELLED) return request;
     assertRequestTransition(request.status, BloodRequestStatus.CANCELLED);
 
-    await tx.requestAssignment.updateMany({
+    const actionableAssignments = await tx.requestAssignment.findMany({
       where: {
         requestId,
         isDeleted: false,
         status: {
-          in: [RequestAssignmentStatus.NOTIFIED, RequestAssignmentStatus.ACCEPTED],
+          in: [
+            RequestAssignmentStatus.NOTIFIED,
+            RequestAssignmentStatus.ACCEPTED,
+            RequestAssignmentStatus.DONATION_PENDING,
+          ],
         },
       },
+      select: { id: true },
+    });
+    const actionableAssignmentIds = actionableAssignments.map(({ id }) => id);
+    await tx.requestAssignment.updateMany({
+      where: { id: { in: actionableAssignmentIds } },
       data: { status: RequestAssignmentStatus.CANCELLED, cancelledAt: new Date() },
     });
+    if (actionableAssignmentIds.length) {
+      await tx.notification.updateMany({
+        where: {
+          isDeleted: false,
+          relatedType: "REQUEST_ASSIGNMENT",
+          relatedId: { in: actionableAssignmentIds },
+        },
+        data: { isRead: true },
+      });
+    }
     const updated = await tx.bloodRequest.update({
       where: { id: requestId },
       data: {
@@ -210,31 +253,9 @@ const respondToAssignment = async (
 ) => {
   const donor = await prisma.donor.findUnique({
     where: { email: user.email, isDeleted: false },
-    select: {
-      id: true,
-      isVerified: true,
-      profileStatus: true,
-      accountStatus: true,
-      availabilityStatus: true,
-      nextEligibleDonationDate: true,
-    },
+    select: { id: true },
   });
   if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "Donor not found!");
-  if (action === "ACCEPT") {
-    if (!donor.isVerified) {
-      throw new TransitionConflict("EMAIL_NOT_VERIFIED", "Verify your email before accepting requests.");
-    }
-    if (donor.profileStatus !== DonorProfileStatus.COMPLETE) {
-      throw new TransitionConflict("PROFILE_INCOMPLETE", "Complete your donor profile before accepting requests.");
-    }
-    if (
-      donor.accountStatus !== "ACTIVE" ||
-      donor.availabilityStatus !== "AVAILABLE" ||
-      (donor.nextEligibleDonationDate && donor.nextEligibleDonationDate > new Date())
-    ) {
-      throw new TransitionConflict("DONOR_NOT_ELIGIBLE", "You are not currently eligible to donate.");
-    }
-  }
 
   return prisma.$transaction(async (tx) => {
     const assignmentRef = await tx.requestAssignment.findFirst({
@@ -260,6 +281,62 @@ const respondToAssignment = async (
           declineReason: reason,
         },
       });
+    }
+
+    // Re-read readiness inside the request transaction. This prevents a stale
+    // pre-transaction eligibility check from accepting a donor whose profile,
+    // account, blood group, affiliation, availability, or cooldown changed
+    // while this request was waiting for its row lock.
+    const eligibleDonor = await tx.donor.findUnique({
+      where: { id: donor.id, isDeleted: false },
+      select: {
+        isVerified: true,
+        profileStatus: true,
+        accountStatus: true,
+        availabilityStatus: true,
+        nextEligibleDonationDate: true,
+        bloodGroupId: true,
+        affiliations: {
+          where: {
+            organizationId: assignment.request.handledByOrganizationId ?? "",
+            upazilaId: assignment.request.upazilaId,
+            active: true,
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!eligibleDonor) {
+      throw new TransitionConflict(
+        "DONOR_NOT_ELIGIBLE",
+        "You are not currently eligible to donate.",
+      );
+    }
+    if (!eligibleDonor.isVerified) {
+      throw new TransitionConflict(
+        "EMAIL_NOT_VERIFIED",
+        "Verify your email before accepting requests.",
+      );
+    }
+    if (eligibleDonor.profileStatus !== DonorProfileStatus.COMPLETE) {
+      throw new TransitionConflict(
+        "PROFILE_INCOMPLETE",
+        "Complete your donor profile before accepting requests.",
+      );
+    }
+    if (
+      eligibleDonor.accountStatus !== "ACTIVE" ||
+      eligibleDonor.availabilityStatus !== "AVAILABLE" ||
+      eligibleDonor.bloodGroupId !== assignment.request.bloodGroupId ||
+      !eligibleDonor.affiliations.length ||
+      (eligibleDonor.nextEligibleDonationDate &&
+        eligibleDonor.nextEligibleDonationDate > new Date())
+    ) {
+      throw new TransitionConflict(
+        "DONOR_NOT_ELIGIBLE",
+        "You are not currently eligible to donate.",
+      );
     }
 
     const committed = await tx.requestAssignment.aggregate({
@@ -329,10 +406,83 @@ const respondToAssignment = async (
   });
 };
 
+const withdrawAssignment = async (
+  user: IJWTPayload,
+  assignmentId: string,
+  reason: string,
+) => {
+  const donor = await prisma.donor.findUnique({
+    where: { email: user.email, isDeleted: false },
+    select: { id: true },
+  });
+  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "Donor not found!");
+
+  return prisma.$transaction(async (tx) => {
+    const assignmentRef = await tx.requestAssignment.findFirst({
+      where: { id: assignmentId, donorId: donor.id, isDeleted: false },
+      select: { requestId: true },
+    });
+    if (!assignmentRef) throw new ApiError(httpStatus.NOT_FOUND, "Assignment not found!");
+
+    await tx.$queryRaw`SELECT id FROM "BloodRequests" WHERE id = ${assignmentRef.requestId} FOR UPDATE`;
+    const assignment = await tx.requestAssignment.findFirst({
+      where: { id: assignmentId, donorId: donor.id, isDeleted: false },
+      include: { request: true, donation: { select: { id: true } } },
+    });
+    if (!assignment) throw new ApiError(httpStatus.NOT_FOUND, "Assignment not found!");
+    if (assignment.status === RequestAssignmentStatus.CANCELLED) return assignment;
+    if (assignment.status !== RequestAssignmentStatus.ACCEPTED || assignment.donation) {
+      throw new TransitionConflict(
+        "ASSIGNMENT_NOT_ACTIONABLE",
+        "Only an accepted commitment without submitted donation evidence can be withdrawn.",
+      );
+    }
+    if (
+      assignment.request.status !== BloodRequestStatus.PROCESSING &&
+      assignment.request.status !== BloodRequestStatus.DONOR_FOUND
+    ) {
+      throw new TransitionConflict(
+        "REQUEST_CLOSED",
+        "This request no longer allows donor withdrawal.",
+      );
+    }
+
+    const updated = await tx.requestAssignment.update({
+      where: { id: assignmentId },
+      data: {
+        status: RequestAssignmentStatus.CANCELLED,
+        cancelledAt: new Date(),
+        declineReason: reason,
+      },
+    });
+
+    if (assignment.request.status === BloodRequestStatus.DONOR_FOUND) {
+      await tx.bloodRequest.update({
+        where: { id: assignment.requestId },
+        data: {
+          status: BloodRequestStatus.PROCESSING,
+          donorFoundAt: null,
+          version: { increment: 1 },
+        },
+      });
+      await addHistory(tx, {
+        requestId: assignment.requestId,
+        previousStatus: BloodRequestStatus.DONOR_FOUND,
+        newStatus: BloodRequestStatus.PROCESSING,
+        changedById: donor.id,
+        reason: `Donor commitment withdrawn: ${reason}`,
+      });
+    }
+
+    return updated;
+  });
+};
+
 export const BloodRequestCommandService = {
   startProcessing,
   rejectRequest,
   cancelRequest,
   completeHandover,
   respondToAssignment,
+  withdrawAssignment,
 };

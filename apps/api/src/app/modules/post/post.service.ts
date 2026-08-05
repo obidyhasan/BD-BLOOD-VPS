@@ -70,21 +70,35 @@ const createPost = async (
       throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
   }
 
+  let donationId: string | null = null;
   if (PERSONAL_DONATION_POST_TYPES.includes(payload.postType)) {
+    if (!payload.donationId) {
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "Select an unused verified donation before sharing a donation recap.",
+        "",
+        "DONATION_POST_GRANT_REQUIRED",
+      );
+    }
     const verifiedDonation = await prisma.bloodDonation.findFirst({
       where: {
+        id: payload.donationId,
         donorId: donor.id,
         isDeleted: false,
         verificationStatus: VerificationStatus.VERIFIED,
+        post: null,
       },
       select: { id: true },
     });
     if (!verifiedDonation) {
       throw new ApiError(
-        httpStatus.FORBIDDEN,
-        "You need at least one verified donation before sharing a donation post.",
+        httpStatus.CONFLICT,
+        "This donation is not eligible for a new donation recap.",
+        "",
+        "DONATION_POST_GRANT_UNAVAILABLE",
       );
     }
+    donationId = verifiedDonation.id;
   }
 
   const slug = await uniquePostSlug(payload.title);
@@ -93,6 +107,7 @@ const createPost = async (
     data: {
       donorId: donor.id,
       organizationId: payload.organizationId ?? null,
+      donationId,
       postType: payload.postType,
       title: payload.title,
       slug,
@@ -108,6 +123,26 @@ const createPost = async (
   });
 
   return result;
+};
+
+const getPostEligibility = async (user: IJWTPayload) => {
+  const donor = await getRequesterDonor(user);
+  return prisma.bloodDonation.findMany({
+    where: {
+      donorId: donor.id,
+      isDeleted: false,
+      verificationStatus: VerificationStatus.VERIFIED,
+      post: null,
+    },
+    select: {
+      id: true,
+      donationDate: true,
+      hospitalName: true,
+      recipientName: true,
+      organization: { select: { id: true, name: true } },
+    },
+    orderBy: { donationDate: "desc" },
+  });
 };
 
 const getMyPosts = async (
@@ -607,6 +642,7 @@ const deletePost = async (user: IJWTPayload, id: string) => {
 
 export const PostService = {
   createPost,
+  getPostEligibility,
   getMyPosts,
   getMyPostBySlug,
   getAllPosts,

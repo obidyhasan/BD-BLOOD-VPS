@@ -1,9 +1,10 @@
 import httpStatus from "http-status";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import {
   AccountStatus,
   AvailabilityStatus,
   BloodRequestStatus,
+  MessageChannel,
   NotificationPriority,
   NotificationType,
   Prisma,
@@ -16,8 +17,8 @@ import { bloodRequestSearchableFields } from "./bloodRequest.constant";
 import ApiError from "../../errors/ApiError";
 import { IJWTPayload } from "../../types";
 import { assertCanUpdateBloodRequest } from "../../middlewares/orgAccess";
-import { smsHelper } from "../../helper/smsHelper";
 import { emitDonorNotification } from "../../shared/socket";
+import { enqueueOutboxEvent, requestEventKey } from "../../shared/messageOutbox";
 
 const requestInclude = {
   bloodGroup: true,
@@ -165,8 +166,51 @@ const createStatusHistory = async (
   });
 };
 
-const createRequest = async (payload: any) => {
-  const result = await prisma.$transaction(async (tx) => {
+const createRequest = async (payload: any, idempotencyKey: string) => {
+  const normalizedKey = idempotencyKey.trim();
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(normalizedKey)) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "A valid Idempotency-Key header is required.",
+      "",
+      "INVALID_IDEMPOTENCY_KEY",
+    );
+  }
+  const payloadHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        requesterName: payload.requesterName,
+        requesterPhone: payload.requesterPhone,
+        bloodGroupId: payload.bloodGroupId,
+        hospitalName: payload.hospitalName,
+        divisionId: payload.divisionId,
+        districtId: payload.districtId,
+        upazilaId: payload.upazilaId,
+        requiredUnits: payload.requiredUnits,
+        requestType: payload.requestType ?? "GENERAL",
+        message: payload.message ?? null,
+      }),
+    )
+    .digest("hex");
+
+  const existingKey = await prisma.publicRequestIdempotency.findUnique({
+    where: { key: normalizedKey },
+    include: { request: { include: requestInclude } },
+  });
+  if (existingKey) {
+    if (existingKey.payloadHash !== payloadHash) {
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "This Idempotency-Key was already used with a different request payload.",
+        "",
+        "IDEMPOTENCY_KEY_REUSED",
+      );
+    }
+    return addAssignmentSummary(existingKey.request);
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
     const [bloodGroup, ancestry] = await Promise.all([
       tx.bloodGroup.findUnique({ where: { id: payload.bloodGroupId } }),
       tx.upazila.findFirst({
@@ -202,7 +246,7 @@ const createRequest = async (payload: any) => {
         canonical: true,
         isDeleted: false,
       },
-      select: { id: true, name: true, upazilaId: true },
+      select: { id: true, name: true, phone: true, upazilaId: true },
     });
     if (!organization) {
       throw new ApiError(
@@ -253,10 +297,62 @@ const createRequest = async (payload: any) => {
       },
     });
 
-    return request;
-  });
+    if (organization.phone) {
+      await enqueueOutboxEvent(tx, {
+        channel: MessageChannel.SMS,
+        templateKey: "BLOOD_REQUEST_SUBMITTED_ORGANIZATION",
+        recipient: organization.phone,
+        payload: {
+          requestId: request.id,
+          referenceCode: request.referenceCode,
+          bloodGroup: request.bloodGroup.groupName,
+          requiredBags: request.requiredUnits,
+          requesterName: request.requesterName,
+          hospitalName: request.hospitalName,
+          upazila: request.upazila.name,
+        },
+        aggregateType: "BloodRequest",
+        aggregateId: request.id,
+        eventKey: requestEventKey(request.id, "SUBMITTED", "organization"),
+      });
+    }
 
-  return result;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      await tx.publicRequestIdempotency.create({
+        data: {
+          key: normalizedKey,
+          payloadHash,
+          requestId: request.id,
+          expiresAt,
+        },
+      });
+
+      return request;
+    });
+
+    return result;
+  } catch (error: unknown) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const raced = await prisma.publicRequestIdempotency.findUnique({
+        where: { key: normalizedKey },
+        include: { request: { include: requestInclude } },
+      });
+      if (raced?.payloadHash === payloadHash) {
+        return addAssignmentSummary(raced.request);
+      }
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "This Idempotency-Key was already used with a different request payload.",
+        "",
+        "IDEMPOTENCY_KEY_REUSED",
+      );
+    }
+    throw error;
+  }
 };
 
 const getManagedOrganizationIds = async (user: IJWTPayload) => {
@@ -286,6 +382,62 @@ const getManagedOrganizationIds = async (user: IJWTPayload) => {
     );
   }
   return organizationIds;
+};
+
+const trackRequest = async (referenceCode: string, phoneSuffix: string) => {
+  const normalizedSuffix = phoneSuffix.replace(/\D/g, "");
+  if (normalizedSuffix.length < 4 || normalizedSuffix.length > 11) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Provide at least the last four digits of the requester phone number.",
+      "",
+      "INVALID_TRACKING_CREDENTIALS",
+    );
+  }
+
+  const request = await prisma.bloodRequest.findUnique({
+    where: { referenceCode, isDeleted: false },
+    select: {
+      referenceCode: true,
+      requesterPhone: true,
+      bloodGroup: { select: { groupName: true } },
+      requiredUnits: true,
+      hospitalName: true,
+      status: true,
+      createdAt: true,
+      acceptedAt: true,
+      donorFoundAt: true,
+      fulfilledAt: true,
+      handoverCompletedAt: true,
+      cancelledAt: true,
+      rejectedAt: true,
+      division: { select: { name: true } },
+      district: { select: { name: true } },
+      upazila: { select: { name: true } },
+      assignments: {
+        where: { isDeleted: false },
+        select: { status: true, bagUnits: true },
+      },
+      statusHistory: {
+        select: { newStatus: true, reason: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+  if (
+    !request ||
+    !request.requesterPhone.replace(/\D/g, "").endsWith(normalizedSuffix)
+  ) {
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "Blood request tracking information was not found.",
+      "",
+      "TRACKING_NOT_FOUND",
+    );
+  }
+
+  const { requesterPhone: _requesterPhone, ...safeRequest } = request;
+  return addAssignmentSummary(safeRequest);
 };
 
 const getAllRequests = async (
@@ -355,166 +507,6 @@ const getSingleRequest = async (user: IJWTPayload, id: string) => {
     include: requestInclude,
   });
   return addAssignmentSummary(request);
-};
-
-const updateRequestStatus = async (
-  user: IJWTPayload,
-  id: string,
-  status: BloodRequestStatus,
-  organizationId?: string,
-) => {
-  await assertCanUpdateBloodRequest(user, id);
-  const actor = await getActorDonor(user);
-
-  if (status === "CANCELLED") {
-    return cancelRequest(user, id);
-  }
-
-  const existing = await prisma.bloodRequest.findUnique({
-    where: { id, isDeleted: false },
-    include: { bloodGroup: true },
-  });
-  if (!existing) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Blood request not found!");
-  }
-  if (existing.status === "CANCELLED") {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Cancelled requests cannot be updated.",
-    );
-  }
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const request = await tx.bloodRequest.update({
-      where: { id },
-      data: {
-        status,
-        confirmedAt:
-          status === "FULFILLED"
-            ? (existing.confirmedAt ?? new Date())
-            : existing.confirmedAt,
-      },
-      include: requestInclude,
-    });
-
-    if (existing.status !== status) {
-      await createStatusHistory(tx, {
-        requestId: id,
-        previousStatus: existing.status,
-        newStatus: status,
-        changedById: actor.id,
-        reason: "Manual status update",
-      });
-    }
-
-    if (status === "FULFILLED" && existing.status !== "FULFILLED") {
-      let remaining = existing.requiredUnits;
-      const inventories = await tx.organizationBloodInventory.findMany({
-        where: {
-          isDeleted: false,
-          bloodGroupId: existing.bloodGroupId,
-          availableUnits: { gt: 0 },
-          organization: {
-            isDeleted: false,
-            districtId: existing.districtId,
-            upazilaId: existing.upazilaId,
-            ...(organizationId ? { id: organizationId } : {}),
-          },
-        },
-        orderBy: { availableUnits: "desc" },
-      });
-
-      for (const inv of inventories) {
-        if (remaining <= 0) break;
-        const deduct = Math.min(remaining, inv.availableUnits);
-        await tx.organizationBloodInventory.update({
-          where: { id: inv.id },
-          data: { availableUnits: inv.availableUnits - deduct },
-        });
-        remaining -= deduct;
-      }
-    }
-
-    return request;
-  });
-
-  if (status === "PROCESSING" && existing.status !== "PROCESSING") {
-    await assignDonors(user, id);
-  }
-
-  if (
-    status === "FULFILLED" &&
-    existing.status !== "FULFILLED" &&
-    existing.requesterPhone
-  ) {
-    void smsHelper.sendSMS(
-      existing.requesterPhone,
-      `BD Blood: Your blood request for ${existing.bloodGroup?.groupName ?? "blood"} at ${existing.hospitalName} has been fulfilled. Thank you.`,
-    );
-  }
-
-  return addAssignmentSummary(updated);
-};
-
-const cancelRequest = async (user: IJWTPayload, id: string) => {
-  await assertCanUpdateBloodRequest(user, id);
-  const actor = await getActorDonor(user);
-
-  const existing = await prisma.bloodRequest.findUnique({
-    where: { id, isDeleted: false },
-  });
-  if (!existing) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Blood request not found!");
-  }
-  if (existing.status === "FULFILLED") {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Completed requests cannot be cancelled.",
-    );
-  }
-  if (existing.status === "CANCELLED") {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "This request is already cancelled.",
-    );
-  }
-
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.requestAssignment.updateMany({
-      where: {
-        requestId: id,
-        isDeleted: false,
-        status: RequestAssignmentStatus.PENDING,
-      },
-      data: { status: RequestAssignmentStatus.CANCELLED },
-    });
-
-    const request = await tx.bloodRequest.update({
-      where: { id },
-      data: {
-        status: "CANCELLED",
-        cancelledAt: new Date(),
-        cancelledById: actor.id,
-      },
-      include: requestInclude,
-    });
-
-    await createStatusHistory(tx, {
-      requestId: id,
-      previousStatus: existing.status,
-      newStatus: "CANCELLED",
-      changedById: actor.id,
-      reason: "Request cancelled by admin",
-    });
-
-    return request;
-  });
-
-  return addAssignmentSummary(updated);
-};
-
-const deleteRequest = async (user: IJWTPayload, id: string) => {
-  return cancelRequest(user, id);
 };
 
 const getEligibleDonors = async (user: IJWTPayload, id: string) => {
@@ -773,167 +765,6 @@ const getAssignmentForDonor = async (
   return assignment;
 };
 
-const respondToAssignment = async (
-  user: IJWTPayload,
-  assignmentId: string,
-  action: "ACCEPTED" | "REJECTED",
-  rejectionReason?: string,
-) => {
-  const donor = await getActorDonor(user);
-  let fulfilledNow = false;
-
-  const result = await prisma.$transaction(async (tx) => {
-    const existingAssignment = await tx.requestAssignment.findUnique({
-      where: { id: assignmentId, donorId: donor.id, isDeleted: false },
-      select: { requestId: true },
-    });
-    if (!existingAssignment)
-      throw new ApiError(httpStatus.NOT_FOUND, "Assignment not found!");
-
-    await tx.$queryRaw`SELECT id FROM "BloodRequests" WHERE id = ${existingAssignment.requestId} FOR UPDATE`;
-
-    const assignment = await tx.requestAssignment.findUnique({
-      where: { id: assignmentId, donorId: donor.id, isDeleted: false },
-      include: {
-        request: {
-          include: {
-            assignments: { where: { isDeleted: false } },
-            bloodGroup: true,
-          },
-        },
-      },
-    });
-    if (!assignment)
-      throw new ApiError(httpStatus.NOT_FOUND, "Assignment not found!");
-
-    if (assignment.request.status === "CANCELLED") {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "This blood request has been cancelled.",
-      );
-    }
-    if (
-      assignment.status === RequestAssignmentStatus.ACCEPTED ||
-      assignment.status === RequestAssignmentStatus.REJECTED
-    ) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "This donor assignment has already been processed.",
-      );
-    }
-    if (assignment.status === RequestAssignmentStatus.CANCELLED) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "This donor assignment is no longer active.",
-      );
-    }
-
-    if (action === "ACCEPTED") {
-      const acceptedBefore = assignment.request.assignments.filter(
-        (a) => a.status === RequestAssignmentStatus.ACCEPTED,
-      ).length;
-      if (acceptedBefore >= assignment.request.requiredUnits) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          "This request is already fulfilled.",
-        );
-      }
-    }
-
-    const updatedAssignment = await tx.requestAssignment.update({
-      where: { id: assignmentId },
-      data: {
-        status: action,
-        acceptedAt: action === "ACCEPTED" ? new Date() : undefined,
-        rejectedAt: action === "REJECTED" ? new Date() : undefined,
-        rejectionReason: action === "REJECTED" ? rejectionReason : undefined,
-      },
-      include: {
-        request: {
-          include: {
-            assignments: { where: { isDeleted: false } },
-            bloodGroup: true,
-          },
-        },
-      },
-    });
-
-    if (action === "REJECTED") return updatedAssignment;
-
-    const acceptedAfter = await tx.requestAssignment.count({
-      where: {
-        requestId: updatedAssignment.requestId,
-        isDeleted: false,
-        status: RequestAssignmentStatus.ACCEPTED,
-      },
-    });
-
-    if (acceptedAfter >= updatedAssignment.request.requiredUnits) {
-      await tx.requestAssignment.updateMany({
-        where: {
-          requestId: updatedAssignment.requestId,
-          isDeleted: false,
-          status: RequestAssignmentStatus.PENDING,
-          id: { not: assignmentId },
-        },
-        data: { status: RequestAssignmentStatus.CANCELLED },
-      });
-
-      await tx.notification.updateMany({
-        where: {
-          isDeleted: false,
-          relatedType: "REQUEST_ASSIGNMENT",
-          relatedId: {
-            in: updatedAssignment.request.assignments
-              .filter(
-                (a) =>
-                  a.id !== assignmentId &&
-                  a.status === RequestAssignmentStatus.PENDING,
-              )
-              .map((a) => a.id),
-          },
-        },
-        data: { isRead: true },
-      });
-
-      if (updatedAssignment.request.status !== "FULFILLED") {
-        await tx.bloodRequest.update({
-          where: { id: updatedAssignment.requestId },
-          data: { status: "FULFILLED", confirmedAt: new Date() },
-        });
-        await createStatusHistory(tx, {
-          requestId: updatedAssignment.requestId,
-          previousStatus: updatedAssignment.request.status,
-          newStatus: "FULFILLED",
-          changedById: donor.id,
-          reason: "Required donor count accepted",
-        });
-        fulfilledNow = true;
-      }
-    }
-
-    return updatedAssignment;
-  });
-
-  if (action === "ACCEPTED" && fulfilledNow && result.request.requesterPhone) {
-    void smsHelper.sendSMS(
-      result.request.requesterPhone,
-      `BD Blood: Your ${result.request.bloodGroup?.groupName ?? "blood"} request at ${result.request.hospitalName} is confirmed.`,
-    );
-  }
-
-  return result;
-};
-
-const rematchOrganizations = async (_id: string) => {
-  throw new ApiError(
-    httpStatus.CONFLICT,
-    "Organization rematching is deprecated. Requests are routed to one canonical Upazila organization; use donor dispatch after processing starts.",
-    "",
-    "LEGACY_REMATCH_DISABLED",
-  );
-};
-
 const sendRequesterSms = async (
   user: IJWTPayload,
   id: string,
@@ -948,7 +779,18 @@ const sendRequesterSms = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Blood request not found!");
   }
 
-  return smsHelper.sendSMS(request.requesterPhone, message);
+  const messageKey = Buffer.from(message).toString("base64url").slice(0, 48);
+  return prisma.$transaction((tx) =>
+    enqueueOutboxEvent(tx, {
+      channel: MessageChannel.SMS,
+      templateKey: "BLOOD_REQUEST_MANUAL_REQUESTER",
+      recipient: request.requesterPhone,
+      payload: { requestId: request.id, referenceCode: request.referenceCode, message },
+      aggregateType: "BloodRequest",
+      aggregateId: request.id,
+      eventKey: requestEventKey(request.id, "MANUAL", messageKey),
+    }),
+  );
 };
 
 const getRequestNotifications = async (id: string) => {
@@ -970,16 +812,12 @@ const getRequestNotifications = async (id: string) => {
 
 export const BloodRequestService = {
   createRequest,
+  trackRequest,
   getAllRequests,
   getSingleRequest,
-  updateRequestStatus,
-  cancelRequest,
   sendRequesterSms,
-  deleteRequest,
   getEligibleDonors,
   assignDonors,
   getAssignmentForDonor,
-  respondToAssignment,
-  rematchOrganizations,
   getRequestNotifications,
 };

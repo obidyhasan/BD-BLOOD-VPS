@@ -10,7 +10,6 @@ import {
   Users,
   Plus,
   Trash2,
-  Mail,
   Building2,
   UserCog,
   Calendar,
@@ -53,7 +52,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog/DeleteConfirmDialog";
 import { toast } from "sonner";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -112,8 +111,14 @@ export default function OrganizationMembersPage() {
   const [assignMember] = useAssignOrganizationMemberMutation();
   const [updateMemberStatus] = useUpdateMemberStatusMutation();
 
-  const orgs: Organization[] = orgsData?.data ?? [];
-  const donors: Donor[] = donorsData?.data ?? [];
+  const orgs: Organization[] = useMemo(
+    () => orgsData?.data ?? [],
+    [orgsData?.data],
+  );
+  const donors: Donor[] = useMemo(
+    () => donorsData?.data ?? [],
+    [donorsData?.data],
+  );
   const positions: SystemPositionUI[] = useMemo(
     () => (positionsData?.data ?? []).map(mapOrganizationPositionToUI),
     [positionsData],
@@ -173,6 +178,34 @@ export default function OrganizationMembersPage() {
     resolver: zodResolver(editSchema),
     defaultValues: { organizationId: "", position: "" },
   });
+  const selectedPromoteOrganizationId = useWatch({
+    control: form.control,
+    name: "organizationId",
+  });
+  const selectedEditOrganizationId = useWatch({
+    control: editForm.control,
+    name: "organizationId",
+  });
+  const allowedPromotePositions = useMemo(() => {
+    const upazilaSelected = orgs.find(
+      (organization) => organization.id === selectedPromoteOrganizationId,
+    )?.level === "UPAZILA";
+    return positions.filter(
+      (position) =>
+        position.level !== "Support" &&
+        !(upazilaSelected && position.level === "Management"),
+    );
+  }, [orgs, positions, selectedPromoteOrganizationId]);
+  const allowedEditPositions = useMemo(() => {
+    const upazilaSelected = orgs.find(
+      (organization) => organization.id === selectedEditOrganizationId,
+    )?.level === "UPAZILA";
+    return positions.filter(
+      (position) =>
+        position.level !== "Support" &&
+        !(upazilaSelected && position.level === "Management"),
+    );
+  }, [orgs, positions, selectedEditOrganizationId]);
 
   useEffect(() => {
     if (editTarget) {
@@ -190,6 +223,7 @@ export default function OrganizationMembersPage() {
       await assignMember({
         donorId: data.donorId,
         positionId: position?.id ?? data.position,
+        category: position?.level === "Management" ? "ADVISOR" : "COMMITTEE",
         organizationId:
           data.organizationId === NATIONAL_SCOPE_VALUE
             ? undefined
@@ -222,6 +256,7 @@ export default function OrganizationMembersPage() {
       await assignMember({
         donorId: editTarget.donorId,
         positionId: position?.id ?? data.position,
+        category: position?.level === "Management" ? "ADVISOR" : "COMMITTEE",
         organizationId:
           data.organizationId === NATIONAL_SCOPE_VALUE
             ? undefined
@@ -610,6 +645,7 @@ export default function OrganizationMembersPage() {
                                   key={o.id}
                                   onSelect={() => {
                                     form.setValue("organizationId", o.id);
+                                    form.setValue("position", "");
                                     setOrgOpen(false);
                                   }}
                                   className="rounded-xl font-bold text-xs uppercase  my-1 cursor-pointer"
@@ -649,7 +685,7 @@ export default function OrganizationMembersPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="rounded-2xl p-2 max-h-[250px]">
-                        {positions.map((p) => (
+                        {allowedPromotePositions.map((p) => (
                           <SelectItem
                             key={p.id}
                             value={p.name}
@@ -787,6 +823,7 @@ export default function OrganizationMembersPage() {
                                   key={o.id}
                                   onSelect={() => {
                                     editForm.setValue("organizationId", o.id);
+                                    editForm.setValue("position", "");
                                     setEditOrgOpen(false);
                                   }}
                                   className="rounded-xl font-bold text-xs uppercase  my-1 cursor-pointer"
@@ -826,7 +863,7 @@ export default function OrganizationMembersPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="rounded-2xl p-2 max-h-[250px]">
-                        {positions.map((p) => (
+                        {allowedEditPositions.map((p) => (
                           <SelectItem
                             key={p.id}
                             value={p.name}

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useGetMyPostsQuery } from "@/redux/features/posts/postsApi";
+import { useGetMeQuery } from "@/redux/features/auth/authApi";
 import { mapApiPostToLegacy } from "@/lib/post";
 import type { LegacyPost as Post } from "@/lib/post";
 import PostCard from "@/components/reusable/Donor/PostCard";
@@ -12,8 +13,6 @@ import {
   LayoutGrid,
   List as ListIcon,
   ClipboardList,
-  Lock,
-  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PostDialog } from "@/components/reusable/Donor/PostDialog";
@@ -23,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 const DonorPosts = () => {
   const { data, isLoading, isFetching } = useGetMyPostsQuery({ limit: 100 });
+  const { data: meData } = useGetMeQuery();
   const loading = isLoading || (isFetching && !data);
   const posts: Post[] = useMemo(
     () => (data?.data ?? []).map((p) => mapApiPostToLegacy(p)),
@@ -136,7 +136,15 @@ const DonorPosts = () => {
           <div className="flex-1 xl:flex-none">
             <PostDialog
               trigger={
-                <Button className="w-full h-14 px-8 rounded-2xl font-black text-xs uppercase tracking-[0.1em] bg-primary text-white dark:bg-primary dark:text-white hover:bg-primary/80 dark:hover:bg-primary/80 shadow-xl transition-all hover:scale-[1.02] active:scale-95 border-none">
+                <Button
+                  disabled={!meData?.data?.capabilities?.canCreateDonationPost}
+                  title={
+                    meData?.data?.capabilities?.canCreateDonationPost
+                      ? undefined
+                      : "Complete your profile and verify a donation before creating a donation post."
+                  }
+                  className="w-full h-14 px-8 rounded-2xl font-black text-xs uppercase tracking-[0.1em] bg-primary text-white dark:bg-primary dark:text-white hover:bg-primary/80 dark:hover:bg-primary/80 shadow-xl transition-all hover:scale-[1.02] active:scale-95 border-none"
+                >
                   Create Post
                 </Button>
               }

@@ -37,6 +37,11 @@ router.patch(
   PostController.updatePostApprovalOrg,
 );
 
+router.get(
+  "/post-eligibility",
+  auth(Role.ADMIN, Role.DONOR),
+  PostController.getPostEligibility,
+);
 router.get("/my", auth(Role.ADMIN, Role.DONOR), PostController.getMyPosts);
 router.get(
   "/my/by-slug/:slug",

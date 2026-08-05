@@ -4,9 +4,6 @@ import config from "./app/config";
 import { seedGeoData } from "./app/seed/geoSeed";
 import { seedBloodGroups } from "./app/seed/bloodGroupSeed";
 import { initSocket } from "./app/shared/socket";
-import { startNotificationSweeper } from "./app/jobs/notificationSweeper";
-import { startDonorAvailabilitySweeper } from "./app/jobs/donorAvailabilitySweeper";
-import { startMessageOutboxWorker } from "./app/jobs/messageOutboxWorker";
 import { prisma } from "./app/shared/prisma";
 
 async function bootstrap() {
@@ -21,9 +18,6 @@ async function bootstrap() {
 
     server = createServer(app);
     initSocket(server);
-    startNotificationSweeper();
-    startDonorAvailabilitySweeper();
-    startMessageOutboxWorker();
 
     server.listen(config.port, () => {
       console.log(`🚀 Server is running on http://localhost:${config.port}`);

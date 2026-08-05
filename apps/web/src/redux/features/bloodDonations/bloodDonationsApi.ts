@@ -36,11 +36,12 @@ export interface BloodDonationQueryParams {
 }
 
 export interface CreateBloodDonationPayload {
+  requestAssignmentId?: string;
   recipientName?: string;
-  hospitalName: string;
-  divisionId: string;
-  districtId: string;
-  upazilaId: string;
+  hospitalName?: string;
+  divisionId?: string;
+  districtId?: string;
+  upazilaId?: string;
   organizationId?: string;
   donationDate: string;
   notes?: string;
@@ -82,6 +83,25 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
       providesTags: ["BloodDonations"],
     }),
 
+    getOrganizationDonations: builder.query<
+      { success: boolean; meta: object; data: BloodDonation[] },
+      { organizationId: string; params?: BloodDonationQueryParams }
+    >({
+      query: ({ organizationId, params }) => {
+        const qp = new URLSearchParams();
+        if (params) {
+          Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) qp.append(key, String(value));
+          });
+        }
+        const query = qp.toString();
+        return {
+          url: `/blood-donations/organization/${organizationId}${query ? `?${query}` : ""}`,
+        };
+      },
+      providesTags: ["BloodDonations"],
+    }),
+
     getSingleDonation: builder.query<
       { success: boolean; data: BloodDonation },
       string
@@ -112,14 +132,38 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
 
     verifyDonation: builder.mutation<
       { success: boolean; data: BloodDonation },
-      { id: string; verificationStatus: "VERIFIED" | "REJECTED" }
+      { id: string; notes?: string }
     >({
-      query: ({ id, verificationStatus }) => ({
+      query: ({ id, notes }) => ({
         url: `/blood-donations/${id}/verify`,
-        method: "PATCH",
-        body: { verificationStatus },
+        method: "POST",
+        body: { notes },
       }),
-      invalidatesTags: ["BloodDonations"],
+      invalidatesTags: ["BloodDonations", "BloodRequests"],
+    }),
+
+    rejectDonation: builder.mutation<
+      { success: boolean; data: BloodDonation },
+      { id: string; reason: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/blood-donations/${id}/reject`,
+        method: "POST",
+        body: { reason },
+      }),
+      invalidatesTags: ["BloodDonations", "BloodRequests"],
+    }),
+
+    reverseDonation: builder.mutation<
+      { success: boolean; data: BloodDonation },
+      { id: string; reason: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/blood-donations/${id}/reverse`,
+        method: "POST",
+        body: { reason },
+      }),
+      invalidatesTags: ["BloodDonations", "BloodRequests", "Achievements"],
     }),
 
     deleteDonation: builder.mutation<
@@ -135,9 +179,12 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
 export const {
   useGetAllDonationsQuery,
   useGetMyDonationsQuery,
+  useGetOrganizationDonationsQuery,
   useGetSingleDonationQuery,
   useCreateDonationMutation,
   useUpdateDonationMutation,
   useVerifyDonationMutation,
+  useRejectDonationMutation,
+  useReverseDonationMutation,
   useDeleteDonationMutation,
 } = bloodDonationsApi;

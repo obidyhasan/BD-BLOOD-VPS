@@ -3,7 +3,7 @@ import { prisma } from "../shared/prisma";
 
 const SWEEP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
-async function sweepDonorAvailability() {
+export async function sweepDonorAvailability() {
   try {
     const now = new Date();
 

@@ -38,6 +38,26 @@ const getAllDonations = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getOrganizationDonations = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const filters = pick(req.query, bloodDonationFilterableFields);
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+    const result = await BloodDonationService.getOrganizationDonations(
+      req.user as IJWTPayload,
+      req.params.organizationId,
+      filters,
+      options,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Organization donations retrieved successfully!",
+      data: result.data,
+      meta: result.meta,
+    });
+  },
+);
+
 const getMyDonations = catchAsync(
   async (req: Request & { user?: IJWTPayload }, res: Response) => {
     const filters = pick(req.query, bloodDonationFilterableFields);
@@ -97,13 +117,45 @@ const verifyDonation = catchAsync(
     const result = await BloodDonationService.verifyDonation(
       req.user as IJWTPayload,
       req.params.id,
-      req.body,
+      { verificationStatus: "VERIFIED", notes: req.body.notes },
     );
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: "Donation verification updated successfully!",
+      data: result,
+    });
+  },
+);
+
+const rejectDonation = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const result = await BloodDonationService.rejectDonation(
+      req.user as IJWTPayload,
+      req.params.id,
+      req.body.reason,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Donation evidence rejected successfully!",
+      data: result,
+    });
+  },
+);
+
+const reverseDonation = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const result = await BloodDonationService.reverseDonation(
+      req.user as IJWTPayload,
+      req.params.id,
+      req.body.reason,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Verified donation reversed and projections recalculated!",
       data: result,
     });
   },
@@ -128,10 +180,13 @@ const deleteDonation = catchAsync(
 export const BloodDonationController = {
   createDonation,
   getAllDonations,
+  getOrganizationDonations,
   getMyDonations,
   getSingleDonation,
   updateDonation,
   verifyDonation,
+  rejectDonation,
+  reverseDonation,
   deleteDonation,
 };
 

@@ -1,6 +1,7 @@
 import httpStatus from "http-status";
 import {
   AccountStatus,
+  GovernanceCategory,
   OrganizationMemberStatus,
   PositionLevel,
   PositionStatus,
@@ -311,26 +312,20 @@ const getOrganizationMembers = async (
  */
 const assertLeadershipCapacityAvailable = async (
   organizationId: string | null,
-  positionLevel: PositionLevel,
+  category: GovernanceCategory,
   excludeDonorId?: string,
   db: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
 ) => {
-  if (
-    positionLevel !== PositionLevel.EXECUTIVE &&
-    positionLevel !== PositionLevel.MANAGEMENT
-  ) {
-    return;
-  }
-
   const activeCount = await db.organizationMember.count({
     where: {
       organizationId,
+      category,
       status: OrganizationMemberStatus.ACTIVE,
       isDeleted: false,
       ...(excludeDonorId ? { donorId: { not: excludeDonorId } } : {}),
       position: {
         isDeleted: false,
-        level: positionLevel,
+        level: { in: [PositionLevel.EXECUTIVE, PositionLevel.MANAGEMENT] },
       },
     },
   });
@@ -338,7 +333,7 @@ const assertLeadershipCapacityAvailable = async (
   if (activeCount >= LEADERSHIP_MEMBER_CAP) {
     throw new ApiError(
       httpStatus.CONFLICT,
-      `This organization already has the maximum of ${LEADERSHIP_MEMBER_CAP} active ${positionLevel.toLowerCase()} members. Remove or deactivate a member before appointing another.`,
+      `This organization already has the maximum of ${LEADERSHIP_MEMBER_CAP} active ${category.toLowerCase()} members. Remove or deactivate a member before appointing another.`,
     );
   }
 };
@@ -412,14 +407,14 @@ const updateMemberStatus = async (
     ) {
       if (
         existing.organization?.level === "UPAZILA" &&
-        existing.position.level === PositionLevel.MANAGEMENT
+        existing.category === GovernanceCategory.ADVISOR
       ) {
         throw new ApiError(
           httpStatus.CONFLICT,
           "Upazila organizations do not permit Advisor appointments.",
         );
       }
-      const scope = `${existing.organizationId ?? "CENTRAL"}:${existing.position.level}`;
+      const scope = `${existing.organizationId ?? "CENTRAL"}:${existing.category}`;
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
       if (
         existing.organizationId === null &&
@@ -430,7 +425,7 @@ const updateMemberStatus = async (
       }
       await assertLeadershipCapacityAvailable(
         existing.organizationId,
-        existing.position.level,
+        existing.category,
         existing.donorId,
         tx,
       );
@@ -445,7 +440,12 @@ const updateMemberStatus = async (
 
 const assignOrganizationMember = async (
   user: IJWTPayload,
-  payload: { donorId: string; positionId: string; organizationId?: string },
+  payload: {
+    donorId: string;
+    positionId: string;
+    organizationId?: string;
+    category?: GovernanceCategory;
+  },
 ) => {
   const donor = await prisma.donor.findUnique({
     where: { id: payload.donorId, isDeleted: false },
@@ -490,8 +490,20 @@ const assignOrganizationMember = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Organization position not found!");
   }
 
+  const derivedCategory =
+    position.level === PositionLevel.MANAGEMENT
+      ? GovernanceCategory.ADVISOR
+      : GovernanceCategory.COMMITTEE;
+  const category = payload.category ?? derivedCategory;
+  if (category !== derivedCategory) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Governance category must match the selected position level.",
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
-    if (organizationId && position.level === PositionLevel.MANAGEMENT) {
+    if (organizationId && category === GovernanceCategory.ADVISOR) {
       const organization = await tx.organization.findUnique({
         where: { id: organizationId, isDeleted: false },
         select: { level: true },
@@ -503,7 +515,7 @@ const assignOrganizationMember = async (
         );
       }
     }
-    const scope = `${organizationId ?? "CENTRAL"}:${position.level}`;
+    const scope = `${organizationId ?? "CENTRAL"}:${category}`;
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
 
     if (
@@ -515,7 +527,7 @@ const assignOrganizationMember = async (
     }
     await assertLeadershipCapacityAvailable(
       organizationId,
-      position.level,
+      category,
       payload.donorId,
       tx,
     );
@@ -523,6 +535,7 @@ const assignOrganizationMember = async (
     const data = {
       organizationId,
       positionId: payload.positionId,
+      category,
       status: OrganizationMemberStatus.ACTIVE,
       isDeleted: false,
       deletedAt: null,

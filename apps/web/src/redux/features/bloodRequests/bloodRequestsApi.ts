@@ -120,8 +120,35 @@ export interface CreateBloodRequestPayload {
   message?: string;
 }
 
+export interface TrackedBloodRequest {
+  referenceCode: string;
+  bloodGroup: { groupName: string };
+  requiredUnits: number;
+  hospitalName: string;
+  status: BloodRequestStatus;
+  createdAt: string;
+  division: { name: string };
+  district: { name: string };
+  upazila: { name: string };
+  assignmentSummary: AssignmentSummary;
+  statusHistory: {
+    newStatus: BloodRequestStatus;
+    reason?: string | null;
+    createdAt: string;
+  }[];
+}
+
 export const bloodRequestsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    trackBloodRequest: builder.query<
+      { success: boolean; data: TrackedBloodRequest },
+      { referenceCode: string; phoneSuffix: string }
+    >({
+      query: ({ referenceCode, phoneSuffix }) => ({
+        url: `/blood-requests/track/${encodeURIComponent(referenceCode)}?phoneSuffix=${encodeURIComponent(phoneSuffix)}`,
+      }),
+    }),
+
     getAllBloodRequests: builder.query<
       { success: boolean; meta: object; data: BloodRequest[] },
       BloodRequestQueryParams | void
@@ -149,9 +176,14 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
 
     createBloodRequest: builder.mutation<
       { success: boolean; data: BloodRequest },
-      CreateBloodRequestPayload
+      { payload: CreateBloodRequestPayload; idempotencyKey: string }
     >({
-      query: (data) => ({ url: "/blood-requests", method: "POST", body: data }),
+      query: ({ payload, idempotencyKey }) => ({
+        url: "/blood-requests",
+        method: "POST",
+        body: payload,
+        headers: { "Idempotency-Key": idempotencyKey },
+      }),
       invalidatesTags: ["BloodRequests"],
     }),
 
@@ -199,26 +231,6 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         method: "POST",
       }),
       invalidatesTags: ["BloodRequests", "Notifications"],
-    }),
-
-    updateBloodRequestStatus: builder.mutation<
-      { success: boolean; data: BloodRequest },
-      { id: string; status: BloodRequest["status"] }
-    >({
-      query: ({ id, status }) => ({
-        url: `/blood-requests/${id}/status`,
-        method: "PATCH",
-        body: { status },
-      }),
-      invalidatesTags: ["BloodRequests"],
-    }),
-
-    cancelBloodRequest: builder.mutation<
-      { success: boolean; data: BloodRequest; message: string },
-      string
-    >({
-      query: (id) => ({ url: `/blood-requests/${id}/cancel`, method: "POST" }),
-      invalidatesTags: ["BloodRequests"],
     }),
 
     getEligibleDonors: builder.query<
@@ -271,23 +283,16 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
       invalidatesTags: ["BloodRequests", "Notifications"],
     }),
 
-    rematchOrganizations: builder.mutation<
-      { success: boolean; message: string },
-      string
+    withdrawRequestAssignment: builder.mutation<
+      { success: boolean; data: RequestAssignment; message: string },
+      { assignmentId: string; reason: string }
     >({
-      query: (id) => ({
-        url: `/blood-requests/${id}/rematch`,
+      query: ({ assignmentId, reason }) => ({
+        url: `/blood-requests/assignments/${assignmentId}/withdraw`,
         method: "POST",
+        body: { reason },
       }),
-      invalidatesTags: ["BloodRequests"],
-    }),
-
-    deleteBloodRequest: builder.mutation<
-      { success: boolean; message: string },
-      string
-    >({
-      query: (id) => ({ url: `/blood-requests/${id}`, method: "DELETE" }),
-      invalidatesTags: ["BloodRequests"],
+      invalidatesTags: ["BloodRequests", "Notifications"],
     }),
 
     sendBloodRequestSms: builder.mutation<
@@ -304,6 +309,8 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useTrackBloodRequestQuery,
+  useLazyTrackBloodRequestQuery,
   useGetAllBloodRequestsQuery,
   useGetSingleBloodRequestQuery,
   useCreateBloodRequestMutation,
@@ -311,15 +318,12 @@ export const {
   useRejectBloodRequestMutation,
   useCancelBloodRequestCommandMutation,
   useCompleteHandoverMutation,
-  useUpdateBloodRequestStatusMutation,
-  useCancelBloodRequestMutation,
   useGetEligibleDonorsQuery,
   useAssignDonorsToRequestMutation,
   useGetRequestAssignmentQuery,
   useAcceptRequestAssignmentMutation,
   useRejectRequestAssignmentMutation,
-  useRematchOrganizationsMutation,
-  useDeleteBloodRequestMutation,
+  useWithdrawRequestAssignmentMutation,
   useSendBloodRequestSmsMutation,
 } = bloodRequestsApi;
 

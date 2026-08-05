@@ -9,6 +9,7 @@ const imagesField = z.preprocess((val) => {
 
 export const createPostZodSchema = z.object({
   organizationId: z.string().optional().nullable(),
+  donationId: z.string().uuid().optional().nullable(),
   postType: z.nativeEnum(PostType),
   title: z.string({ message: "Title is required" }).min(1),
   content: z.string({ message: "Content is required" }).min(1),
@@ -18,6 +19,7 @@ export const createPostZodSchema = z.object({
 
 export const updatePostZodSchema = z.object({
   organizationId: z.string().optional().nullable(),
+  donationId: z.string().uuid().optional().nullable(),
   postType: z.nativeEnum(PostType).optional(),
   title: z.string().min(1).optional(),
   content: z.string().min(1).optional(),

@@ -10,19 +10,23 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import TeamCard from "@/components/modules/Home/OurTeam/TeamCard";
 import OrganizationCard from "./OrganizationCard";
-import { Filter, Globe, Newspaper } from "lucide-react";
+import { Filter, Globe, Newspaper, Network, Users } from "lucide-react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader/PageHeader";
 import LocationSelector from "@/components/shared/LocationSelector/LocationSelector";
 import {
   useGetAllOrganizationsQuery,
-  useLazyGetAllOrganizationsQuery,
+  useGetOrganizationTreeQuery,
+  useLazyGetCanonicalOrganizationByUpazilaQuery,
   useGetPublicLeadershipMembersQuery,
 } from "@/redux/features/organizations/organizationsApi";
 import { useGetPublicPostsQuery } from "@/redux/features/posts/postsApi";
 import { buildLocationOrgQueryParams } from "@/lib/organizationGeo";
 
-import type { Organization } from "@/redux/features/organizations/organizationsApi";
+import type {
+  Organization,
+  OrganizationTreeNode,
+} from "@/redux/features/organizations/organizationsApi";
 import type { Post as ApiPost } from "@/redux/features/posts/postsApi";
 
 type AllOrganizationProps = {
@@ -82,16 +86,16 @@ const AllOrganization = ({
     { skip: !!initialPosts?.length },
   );
 
-  const [fetchOrgForUpazila] = useLazyGetAllOrganizationsQuery();
+  const { data: treeData, isLoading: treeLoading } =
+    useGetOrganizationTreeQuery();
+  const [fetchOrgForUpazila] = useLazyGetCanonicalOrganizationByUpazilaQuery();
 
   const handleUpazilaSelect = useCallback(
     async (selectedUpazilaId: string) => {
       if (!selectedUpazilaId) return;
       try {
-        const res = await fetchOrgForUpazila(
-          buildLocationOrgQueryParams({ upazilaId: selectedUpazilaId, limit: 1 }),
-        ).unwrap();
-        const org = res?.data?.[0];
+        const res = await fetchOrgForUpazila(selectedUpazilaId).unwrap();
+        const org = res?.data;
         if (org?.id) {
           router.push(`/organization/${org.id}`);
         }
@@ -104,7 +108,7 @@ const AllOrganization = ({
   );
 
   const orgLoading = isLoading || isFetching;
-  const organizations = data?.data ?? [];
+  const organizations = useMemo(() => data?.data ?? [], [data?.data]);
 
   const organizationNotices = useMemo(
     () =>
@@ -143,6 +147,32 @@ const AllOrganization = ({
       />
 
       <div className="max-w-7xl mx-auto px-6">
+        <section className="mb-10 rounded-[2.5rem] border border-border/40 bg-zinc-50/60 p-6 dark:bg-zinc-900/30 md:p-8">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Network className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black tracking-tight">Canonical Organization Hierarchy</h2>
+              <p className="text-xs font-medium text-muted-foreground">
+                Central, Division, District, and Upazila organizations with donors and governance kept separate.
+              </p>
+            </div>
+          </div>
+          {treeLoading ? (
+            <div className="h-32 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
+          ) : (treeData?.data ?? []).length ? (
+            <div className="space-y-3">
+              {(treeData?.data ?? []).map((node) => (
+                <HierarchyNode key={node.id} node={node} />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed p-8 text-center text-sm font-bold text-muted-foreground">
+              Canonical hierarchy is not configured yet.
+            </p>
+          )}
+        </section>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-9 space-y-8">
             <Tabs defaultValue="committee" className="w-full">
@@ -313,6 +343,41 @@ const AllOrganization = ({
     </div>
   );
 };
+
+function HierarchyNode({
+  node,
+  depth = 0,
+}: {
+  node: OrganizationTreeNode;
+  depth?: number;
+}) {
+  return (
+    <div style={{ marginLeft: Math.min(depth, 3) * 16 }}>
+      <Link
+        href={`/organization/${node.id}`}
+        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/40 bg-background px-4 py-3 transition-colors hover:border-primary/30"
+      >
+        <div>
+          <span className="text-[9px] font-black uppercase text-primary">{node.level}</span>
+          <p className="text-sm font-black">{node.name}</p>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Users className="size-3" /> {node._count.donorAffiliations} donors
+          </span>
+          <span>{node._count.members} governance</span>
+        </div>
+      </Link>
+      {node.children.length > 0 && (
+        <div className="mt-2 space-y-2 border-l border-border/50 pl-2">
+          {node.children.map((child) => (
+            <HierarchyNode key={child.id} node={child} depth={depth + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default AllOrganization;
 

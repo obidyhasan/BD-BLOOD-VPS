@@ -28,6 +28,20 @@ const createPost = catchAsync(
   },
 );
 
+const getPostEligibility = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const result = await PostService.getPostEligibility(
+      req.user as IJWTPayload,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Donation post eligibility retrieved successfully!",
+      data: result,
+    });
+  },
+);
+
 const getMyPosts = catchAsync(
   async (req: Request & { user?: IJWTPayload }, res: Response) => {
     const filters = pick(req.query, postFilterableFields);
@@ -265,6 +279,7 @@ const deletePost = catchAsync(
 
 export const PostController = {
   createPost,
+  getPostEligibility,
   getMyPosts,
   getMyPostBySlug,
   getAllPostsPublic,

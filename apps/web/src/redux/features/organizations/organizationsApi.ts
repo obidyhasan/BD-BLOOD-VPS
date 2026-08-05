@@ -1,5 +1,46 @@
 import { baseApi } from "../../api/baseApi";
 
+export type OrganizationLevel = "CENTRAL" | "DIVISION" | "DISTRICT" | "UPAZILA";
+
+export interface OrganizationTreeNode {
+  id: string;
+  name: string;
+  level: OrganizationLevel;
+  parentId?: string | null;
+  divisionId: string;
+  districtId: string;
+  upazilaId: string;
+  logo?: string | null;
+  address: string;
+  division?: { name: string };
+  district?: { name: string };
+  upazila?: { name: string };
+  _count: { donorAffiliations: number; members: number };
+  children: OrganizationTreeNode[];
+}
+
+export interface AffiliatedDonor {
+  id: string;
+  assignedAt: string;
+  source: "PROFILE" | "ADMIN" | "MIGRATION";
+  donor: {
+    id: string;
+    fullName: string;
+    phone?: string | null;
+    phoneVerifiedAt?: string | null;
+    profilePhoto?: string | null;
+    availabilityStatus: "AVAILABLE" | "UNAVAILABLE";
+    accountStatus: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+    profileStatus: "INCOMPLETE" | "COMPLETE";
+    lastDonationDate?: string | null;
+    nextEligibleDonationDate?: string | null;
+    bloodGroup: { groupName: string };
+    division?: { name: string } | null;
+    district?: { name: string } | null;
+    upazila?: { name: string } | null;
+  };
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -12,6 +53,9 @@ export interface Organization {
   division?: { name: string };
   district?: { name: string };
   upazila?: { name: string };
+  level?: OrganizationLevel;
+  parentId?: string | null;
+  canonical?: boolean;
   description?: string | null;
   logo?: string | null;
   // type matches frontend OrganizationNode.type ("Main Hub", "Regional Branch")
@@ -25,6 +69,7 @@ export interface Organization {
 
 export interface OrganizationMember {
   id: string;
+  category: "COMMITTEE" | "ADVISOR";
   // null -> National/Central member (not tied to any Organization)
   organizationId: string | null;
   donorId: string;
@@ -101,6 +146,34 @@ export const organizationsApi = baseApi.injectEndpoints({
         return { url: `/organizations${qs ? `?${qs}` : ""}` };
       },
       providesTags: ["Organizations"],
+    }),
+
+    getOrganizationTree: builder.query<
+      { success: boolean; data: OrganizationTreeNode[] },
+      void
+    >({
+      query: () => ({ url: "/organizations/tree" }),
+      providesTags: ["Organizations"],
+    }),
+
+    getCanonicalOrganizationByUpazila: builder.query<
+      { success: boolean; data: Organization },
+      string
+    >({
+      query: (upazilaId) => ({ url: `/organizations/by-upazila/${upazilaId}` }),
+      providesTags: (_, __, upazilaId) => [
+        { type: "Organizations", id: `upazila-${upazilaId}` },
+      ],
+    }),
+
+    getAffiliatedDonors: builder.query<
+      { success: boolean; data: AffiliatedDonor[] },
+      string
+    >({
+      query: (organizationId) => ({
+        url: `/organizations/${organizationId}/donors`,
+      }),
+      providesTags: ["OrganizationMembers"],
     }),
 
     getSingleOrganization: builder.query<
@@ -234,7 +307,12 @@ export const organizationsApi = baseApi.injectEndpoints({
 
     assignOrganizationMember: builder.mutation<
       { success: boolean; data: OrganizationMember },
-      { donorId: string; positionId: string; organizationId?: string }
+      {
+        donorId: string;
+        positionId: string;
+        organizationId?: string;
+        category?: "COMMITTEE" | "ADVISOR";
+      }
     >({
       query: (data) => ({
         url: "/organization-members/assign",
@@ -325,6 +403,10 @@ export const organizationsApi = baseApi.injectEndpoints({
 export const {
   useGetAllOrganizationsQuery,
   useLazyGetAllOrganizationsQuery,
+  useGetOrganizationTreeQuery,
+  useGetCanonicalOrganizationByUpazilaQuery,
+  useLazyGetCanonicalOrganizationByUpazilaQuery,
+  useGetAffiliatedDonorsQuery,
   useGetSingleOrganizationQuery,
   useGetOrganizationBySlugQuery,
   useCreateOrganizationMutation,

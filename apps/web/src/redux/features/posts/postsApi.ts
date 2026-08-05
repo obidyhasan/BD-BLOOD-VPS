@@ -27,8 +27,17 @@ export interface Post {
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
   slug?: string;
   createdAt: string;
+  donationId?: string | null;
   updatedAt: string;
   _count?: { likes: number; comments: number };
+}
+
+export interface DonationPostEligibility {
+  id: string;
+  donationDate: string;
+  hospitalName: string;
+  recipientName?: string | null;
+  organization?: { id: string; name: string } | null;
 }
 
 export interface PostComment {
@@ -57,6 +66,14 @@ export interface PostQueryParams {
 
 export const postsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    getPostEligibility: builder.query<
+      { success: boolean; data: DonationPostEligibility[] },
+      void
+    >({
+      query: () => ({ url: "/posts/post-eligibility" }),
+      providesTags: ["BloodDonations", "Posts"],
+    }),
+
     // Public: approved + public posts
     getMyPosts: builder.query<
       { success: boolean; meta: object; data: Post[] },
@@ -241,6 +258,7 @@ export const postsApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetPostEligibilityQuery,
   useGetMyPostsQuery,
   useGetMyPostBySlugQuery,
   useGetPublicPostsQuery,

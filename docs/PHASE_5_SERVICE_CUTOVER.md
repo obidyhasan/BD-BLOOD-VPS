@@ -37,7 +37,7 @@ Authenticated Admin or an authorized organization manager can call:
 - `POST /blood-requests/:id/assignments` to dispatch eligible donors after processing starts
 - `POST /blood-requests/:id/complete-handover`
 
-The existing `PATCH /blood-requests/:id/status` remains temporarily as a compatibility adapter. It delegates legal processing, rejection, cancellation, and completion commands. It rejects manual `DONOR_FOUND` and `FULFILLED` updates because those states are derived from commitments and verified donations.
+Phase 7 removes the former `PATCH /blood-requests/:id/status`, legacy cancel/delete aliases, and organization-rematch endpoint after the active frontend moved to command routes. `DONOR_FOUND` and `FULFILLED` remain derived states and have no manual mutation endpoint.
 
 ## Donor commitments
 
@@ -46,7 +46,7 @@ Existing accept/reject routes now use command semantics:
 - `PATCH /blood-requests/assignments/:assignmentId/accept`
 - `PATCH /blood-requests/assignments/:assignmentId/reject`
 
-Acceptance requires verified email, COMPLETE profile, active account, current availability, and no active donation cooldown. The service locks the request row before counting committed bag units. Exactly the required number can accept; when capacity is reached, the request becomes `DONOR_FOUND` and remaining `NOTIFIED` assignments become `EXPIRED` in the same transaction.
+Acceptance requires verified email, COMPLETE profile, active account, current availability, no active donation cooldown, a matching blood group, and an active affiliation to the request's canonical Upazila organization. These eligibility dimensions are re-read after the service acquires the request row lock, preventing stale eligibility checks while concurrent acceptance waits. Exactly the required number can accept; when capacity is reached, the request becomes `DONOR_FOUND` and remaining `NOTIFIED` assignments become `EXPIRED` in the same transaction.
 
 Declining remains available even when the donor is temporarily ineligible to accept.
 
@@ -75,7 +75,7 @@ For a request-linked donation, `POST /blood-donations` accepts `requestAssignmen
 6. Moves the request to `FULFILLED` only when verified units meet required units.
 7. Creates status history and an idempotent requester SMS outbox event.
 
-Rejected evidence returns the assignment to `ACCEPTED`. Verified donations cannot be modified or deleted through ordinary endpoints; a dedicated reversal workflow is required.
+Rejected evidence returns the assignment to `ACCEPTED`. Cancelling an active request also cancels `NOTIFIED`, `ACCEPTED`, and `DONATION_PENDING` assignments so submitted but unverified evidence cannot remain actionable. Verified donations cannot be modified or deleted through ordinary endpoints; a dedicated reversal workflow is required.
 
 ## Durable outbox
 
@@ -87,12 +87,30 @@ The server starts a bounded SMS outbox worker. It:
 - Retries with exponential backoff.
 - Moves exhausted events to `DEAD` after five attempts.
 - Uses unique event keys to prevent duplicate logical events.
+- Renders the required fulfilled message from the immutable outbox payload, including reference, blood group, bag progress, full location, hospital/request information, and organization contact details when available.
 
 Organization acknowledgement remains in the existing notification table. Unsupported in-app events are not written to the SMS outbox.
 
 ## Governance capacity concurrency
 
 Organization membership activation and assignment now take a PostgreSQL transaction advisory lock keyed by organization and position level. Capacity is recounted and the membership write occurs under the same lock, preventing two concurrent requests from claiming the final seat.
+
+## Implementation-plan completion matrix
+
+The Phase 5 service/API cutover items from the system implementation plan are implemented as follows:
+
+| Plan requirement | Implementation status |
+|---|---|
+| Command-oriented request services and transition guards | Complete. Explicit processing, rejection, cancellation, commitment-derived donor-found, donation-derived fulfillment, and hand-over commands use shared transition rules. |
+| Stop donor alerts at request creation | Complete. Creation writes organization routing/acknowledgement records and no donor assignments; donor dispatch is allowed only in `PROCESSING`. |
+| Canonical Upazila routing | Complete. New requests validate geographic ancestry and resolve an active, non-deleted canonical `UPAZILA` organization or fail atomically. |
+| Row-locked donor acceptance | Complete. The request row is locked before readiness revalidation and committed-bag aggregation; excess acceptance is rejected and remaining notifications expire atomically. |
+| Row-locked governance capacity | Complete. Appointment and activation acquire a transaction advisory lock by organization and position level before recounting capacity and writing membership. |
+| Donation verification advances assignment/request | Complete. Linked submission produces `DONATION_PENDING`; verification produces `DONATED`, cooldown, achievements, and `FULFILLED` when verified bags reach capacity. |
+| Durable outbox events | Complete for organization submission acknowledgement, manual requester messages, and required fulfillment messages. Worker claiming, retry, dead-letter, and idempotent event-key behavior are enabled. |
+| Legacy endpoint adapters | Superseded by Phase 7 cleanup. The status, cancel/delete alias, and rematch endpoints have been removed; only explicit lifecycle commands remain. |
+| Authoritative organization jurisdiction | Complete. Management authorization is scoped only through `handledByOrganizationId`, with Admin as the cross-organization permission superset. |
+| Remaining donor actions disabled | Complete. Capacity expiration, rejection, and cancellation update assignment states and mark related actionable notifications read in their transition transaction. |
 
 ## Verification
 

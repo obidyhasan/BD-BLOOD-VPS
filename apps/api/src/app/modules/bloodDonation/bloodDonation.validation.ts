@@ -43,8 +43,11 @@ export const updateBloodDonationZodSchema = z.object({
 });
 
 export const verifyBloodDonationZodSchema = z.object({
-  verificationStatus: z.nativeEnum(VerificationStatus),
-  notes: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+
+export const donationReasonZodSchema = z.object({
+  reason: z.string({ message: "Reason is required" }).min(3).max(500),
 });
 
 export type createBloodDonationZodSchemaType = z.infer<

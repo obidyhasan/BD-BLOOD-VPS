@@ -323,7 +323,184 @@ const deleteOrganization = async (id: string) => {
   });
 };
 
+const getOrganizationTree = async () => {
+  const organizations = await prisma.organization.findMany({
+    where: {
+      canonical: true,
+      isDeleted: false,
+      organizationStatus: "ACTIVE",
+      verificationStatus: VerificationStatus.VERIFIED,
+    },
+    orderBy: [{ level: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      level: true,
+      parentId: true,
+      divisionId: true,
+      districtId: true,
+      upazilaId: true,
+      logo: true,
+      address: true,
+      _count: {
+        select: {
+          donorAffiliations: { where: { active: true } },
+          members: {
+            where: {
+              isDeleted: false,
+              status: OrganizationMemberStatus.ACTIVE,
+              position: { level: { in: ["EXECUTIVE", "MANAGEMENT"] } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const [divisions, districts, upazilas] = await Promise.all([
+    prisma.division.findMany({
+      where: { id: { in: [...new Set(organizations.map((item) => item.divisionId))] } },
+      select: { id: true, name: true },
+    }),
+    prisma.district.findMany({
+      where: { id: { in: [...new Set(organizations.map((item) => item.districtId))] } },
+      select: { id: true, name: true },
+    }),
+    prisma.upazila.findMany({
+      where: { id: { in: [...new Set(organizations.map((item) => item.upazilaId))] } },
+      select: { id: true, name: true },
+    }),
+  ]);
+  const divisionNames = new Map(divisions.map((item) => [item.id, item.name]));
+  const districtNames = new Map(districts.map((item) => [item.id, item.name]));
+  const upazilaNames = new Map(upazilas.map((item) => [item.id, item.name]));
+
+  type TreeNode = (typeof organizations)[number] & {
+    division?: { name: string };
+    district?: { name: string };
+    upazila?: { name: string };
+    children: TreeNode[];
+  };
+  const nodes = new Map<string, TreeNode>(
+    organizations.map((organization) => [
+      organization.id,
+      {
+        ...organization,
+        division: divisionNames.get(organization.divisionId)
+          ? { name: divisionNames.get(organization.divisionId)! }
+          : undefined,
+        district: districtNames.get(organization.districtId)
+          ? { name: districtNames.get(organization.districtId)! }
+          : undefined,
+        upazila: upazilaNames.get(organization.upazilaId)
+          ? { name: upazilaNames.get(organization.upazilaId)! }
+          : undefined,
+        children: [],
+      },
+    ]),
+  );
+  const roots: TreeNode[] = [];
+
+  for (const node of nodes.values()) {
+    const parent = node.parentId ? nodes.get(node.parentId) : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  return roots;
+};
+
+const getCanonicalOrganizationByUpazila = async (upazilaId: string) => {
+  const organization = await prisma.organization.findFirst({
+    where: {
+      upazilaId,
+      level: "UPAZILA",
+      canonical: true,
+      isDeleted: false,
+      organizationStatus: "ACTIVE",
+      verificationStatus: VerificationStatus.VERIFIED,
+    },
+    select: {
+      id: true,
+      name: true,
+      level: true,
+      logo: true,
+      address: true,
+      upazilaId: true,
+      districtId: true,
+      divisionId: true,
+    },
+  });
+
+  if (!organization) {
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "No canonical organization is configured for this Upazila.",
+      "",
+      "ORGANIZATION_NOT_CONFIGURED",
+    );
+  }
+
+  const [division, district, upazila] = await Promise.all([
+    prisma.division.findUnique({
+      where: { id: organization.divisionId },
+      select: { name: true },
+    }),
+    prisma.district.findUnique({
+      where: { id: organization.districtId },
+      select: { name: true },
+    }),
+    prisma.upazila.findUnique({
+      where: { id: organization.upazilaId },
+      select: { name: true },
+    }),
+  ]);
+
+  return { ...organization, division, district, upazila };
+};
+
+const getAffiliatedDonors = async (organizationId: string) => {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId, isDeleted: false },
+    select: { id: true },
+  });
+  if (!organization) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  }
+
+  return prisma.donorOrganizationAffiliation.findMany({
+    where: { organizationId, active: true },
+    orderBy: { donor: { fullName: "asc" } },
+    select: {
+      id: true,
+      assignedAt: true,
+      source: true,
+      donor: {
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          phoneVerifiedAt: true,
+          profilePhoto: true,
+          availabilityStatus: true,
+          accountStatus: true,
+          profileStatus: true,
+          lastDonationDate: true,
+          nextEligibleDonationDate: true,
+          bloodGroup: { select: { groupName: true } },
+          division: { select: { name: true } },
+          district: { select: { name: true } },
+          upazila: { select: { name: true } },
+        },
+      },
+    },
+  });
+};
+
 export const OrganizationService = {
+  getOrganizationTree,
+  getCanonicalOrganizationByUpazila,
+  getAffiliatedDonors,
   createOrganization,
   registerOrganization,
   getAllOrganizations,

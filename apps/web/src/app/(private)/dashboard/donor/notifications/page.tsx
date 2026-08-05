@@ -10,6 +10,7 @@ import {
   Trash2,
   Inbox,
   Loader2,
+  CalendarDays,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,6 @@ import { extractErrorMessage } from "@/lib/apiError";
 import {
   useGetMyNotificationsQuery,
   useMarkNotificationReadMutation,
-  useMarkAllReadMutation,
   useDeleteNotificationMutation,
   type Notification,
 } from "@/redux/features/notifications/notificationsApi";
@@ -38,8 +38,10 @@ import {
   useAcceptRequestAssignmentMutation,
   useGetRequestAssignmentQuery,
   useRejectRequestAssignmentMutation,
+  useWithdrawRequestAssignmentMutation,
 } from "@/redux/features/bloodRequests/bloodRequestsApi";
 import { useGetMeQuery } from "@/redux/features/auth/authApi";
+import { useCreateDonationMutation } from "@/redux/features/bloodDonations/bloodDonationsApi";
 import { formatDistanceToNow } from "date-fns";
 import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 
@@ -239,12 +241,16 @@ function AssignmentDetailsDialog({
   onAccept,
   onReject,
   acceptBlockedReason,
+  onSubmitDonation,
+  onWithdraw,
 }: {
   assignmentId: string | null;
   onOpenChange: (open: boolean) => void;
   onAccept: (assignmentId: string) => void;
   onReject: (assignmentId: string) => void;
   acceptBlockedReason?: string | null;
+  onSubmitDonation: (assignmentId: string) => void;
+  onWithdraw: (assignmentId: string) => void;
 }) {
   const { data, isFetching } = useGetRequestAssignmentQuery(assignmentId ?? "", {
     skip: !assignmentId,
@@ -285,6 +291,20 @@ function AssignmentDetailsDialog({
           <Button variant="outline" className="rounded-xl font-black" onClick={() => onOpenChange(false)}>
             Close
           </Button>
+          {assignment?.status === "ACCEPTED" && assignmentId && (
+            <>
+              <Button
+                variant="outline"
+                className="rounded-xl font-black text-red-600"
+                onClick={() => onWithdraw(assignmentId)}
+              >
+                Withdraw Commitment
+              </Button>
+              <Button className="rounded-xl font-black" onClick={() => onSubmitDonation(assignmentId)}>
+                <CalendarDays className="size-4 mr-2" /> Submit Donation
+              </Button>
+            </>
+          )}
           {assignment?.status === "NOTIFIED" && assignmentId && (
             <>
               <Button variant="outline" className="rounded-xl font-black text-red-600" onClick={() => onReject(assignmentId)}>
@@ -323,9 +343,11 @@ export default function DonorNotificationsPage() {
   const [deleteNotification] = useDeleteNotificationMutation();
   const [acceptAssignment] = useAcceptRequestAssignmentMutation();
   const [rejectAssignment] = useRejectRequestAssignmentMutation();
+  const [createDonation] = useCreateDonationMutation();
+  const [withdrawAssignment] = useWithdrawRequestAssignmentMutation();
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
-  const notifications = data?.data ?? [];
+  const notifications = useMemo(() => data?.data ?? [], [data?.data]);
   const acceptBlockedReason = meData?.data?.capabilities?.canAcceptBloodRequests
     ? null
     : meData?.data?.profileStatus === "INCOMPLETE"
@@ -390,6 +412,36 @@ export default function DonorNotificationsPage() {
       setAssignmentId(null);
     } catch (e: unknown) {
       toast.error(extractErrorMessage(e, "Failed to reject assignment"));
+    }
+  };
+
+  const handleSubmitDonation = async (id: string) => {
+    if (!meData?.data?.capabilities?.canSubmitDonation) {
+      toast.error("Complete your donor profile before submitting a donation.");
+      return;
+    }
+    try {
+      await createDonation({
+        requestAssignmentId: id,
+        donationDate: new Date().toISOString(),
+      }).unwrap();
+      toast.success("Donation details submitted for organization verification.");
+      setAssignmentId(null);
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to submit donation"));
+    }
+  };
+
+  const handleWithdrawAssignment = async (id: string) => {
+    const reason = window.prompt("Why are you withdrawing this commitment?")?.trim();
+    if (!reason || reason.length < 3) return;
+    try {
+      await withdrawAssignment({ assignmentId: id, reason }).unwrap();
+      await refetchNotifications();
+      toast.info("Commitment withdrawn. The organization can notify a replacement donor.");
+      setAssignmentId(null);
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to withdraw commitment"));
     }
   };
 
@@ -492,6 +544,9 @@ export default function DonorNotificationsPage() {
         onOpenChange={(open) => !open && setAssignmentId(null)}
         onAccept={(id) => handleAcceptAssignment(id)}
         onReject={(id) => handleRejectAssignment(id)}
+        acceptBlockedReason={acceptBlockedReason}
+        onSubmitDonation={handleSubmitDonation}
+        onWithdraw={handleWithdrawAssignment}
       />
     </div>
   );

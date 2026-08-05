@@ -1,9 +1,14 @@
 import { z } from "zod";
-import { BloodRequestStatus, BloodRequestType } from "@prisma/client";
+import { BloodRequestType } from "@prisma/client";
+
+const bdPhoneSchema = z
+  .string({ message: "Requester phone is required" })
+  .trim()
+  .regex(/^(?:\+?88)?01[3-9]\d{8}$/, "Enter a valid Bangladesh phone number");
 
 export const createBloodRequestZodSchema = z.object({
   requesterName: z.string({ message: "Requester name is required" }).min(1),
-  requesterPhone: z.string({ message: "Requester phone is required" }).min(1),
+  requesterPhone: bdPhoneSchema,
   bloodGroupId: z.string({ message: "Blood Group ID is required" }).min(1),
   hospitalName: z.string({ message: "Hospital name is required" }).min(1),
   divisionId: z.string({ message: "Division ID is required" }).min(1),
@@ -13,20 +18,14 @@ export const createBloodRequestZodSchema = z.object({
   requiredUnits: z
     .number({ message: "Required units is required" })
     .int()
-    .positive(),
+    .min(1)
+    .max(10, "A public request can contain at most 10 bags"),
   requestType: z.nativeEnum(BloodRequestType).optional(),
   message: z.string().optional(),
 });
 
-export const updateBloodRequestStatusZodSchema = z.object({
-  status: z.nativeEnum(BloodRequestStatus),
-});
-
 export type createBloodRequestZodSchemaType = z.infer<
   typeof createBloodRequestZodSchema
->;
-export type updateBloodRequestStatusZodSchemaType = z.infer<
-  typeof updateBloodRequestStatusZodSchema
 >;
 
 export const sendBloodRequestSmsZodSchema = z.object({
@@ -51,3 +50,5 @@ export type rejectAssignmentZodSchemaType = z.infer<
 export const requestReasonZodSchema = z.object({
   reason: z.string({ message: "Reason is required" }).min(3).max(500),
 });
+
+export const withdrawAssignmentZodSchema = requestReasonZodSchema;

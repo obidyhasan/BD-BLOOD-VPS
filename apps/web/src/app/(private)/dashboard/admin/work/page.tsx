@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   useGetAdminPostsQuery,
   useTogglePostWorkMutation,
@@ -11,7 +11,6 @@ import WorkCard from "@/components/modules/Home/OurWork/WorkCard";
 import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
 import {
   Search,
-  ClipboardList,
   ChevronLeft,
   ChevronRight,
   Hash,
@@ -113,18 +112,13 @@ const AdminWorkPage = () => {
       } else {
         toast.success("Post added to Our Work section");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to update work status");
     } finally {
       setIsConfirmOpen(false);
       setPendingToggleId(null);
     }
   };
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter, typeFilter]);
 
   return (
     <div className="space-y-8">
@@ -164,14 +158,23 @@ const AdminWorkPage = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
           <Input
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Search by title, author, org or content..."
             className="h-14 pl-12 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/50 border-none focus-visible:ring-2 focus-visible:ring-primary/20 font-bold"
           />
         </div>
 
         <div className="flex items-center gap-3">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select
+            value={typeFilter}
+            onValueChange={(value) => {
+              setTypeFilter(value);
+              setCurrentPage(1);
+            }}
+          >
             <SelectTrigger className="border border-border/40 rounded-2xl py-7 w-[160px] dark:bg-zinc-950/50 font-black text-xs uppercase px-6">
               <SelectValue placeholder="Post Type" />
             </SelectTrigger>
@@ -191,7 +194,13 @@ const AdminWorkPage = () => {
             </SelectContent>
           </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setCurrentPage(1);
+            }}
+          >
             <SelectTrigger className="border border-border/40 rounded-2xl py-7 w-[160px] dark:bg-zinc-950/50 font-black text-xs uppercase px-6">
               <SelectValue placeholder="Status" />
             </SelectTrigger>

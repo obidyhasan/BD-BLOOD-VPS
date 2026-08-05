@@ -27,6 +27,7 @@ import type { LegacyPost } from "@/lib/post";
 import type { FileMetadata, FileWithPreview } from "@/hooks/use-file-upload";
 import {
   useCreatePostMutation,
+  useGetPostEligibilityQuery,
   useUpdatePostMutation,
   type Post as ApiPost,
 } from "@/redux/features/posts/postsApi";
@@ -46,6 +47,7 @@ function buildFormData(
     postType: ApiPost["postType"];
     visibility: ApiPost["visibility"];
     organizationId?: string;
+    donationId?: string;
   },
   galleryFiles: FileWithPreview[],
 ) {
@@ -56,6 +58,9 @@ function buildFormData(
   formData.append("visibility", fields.visibility);
   if (fields.organizationId) {
     formData.append("organizationId", fields.organizationId);
+  }
+  if (fields.donationId) {
+    formData.append("donationId", fields.donationId);
   }
 
   galleryFiles.forEach((item) => {
@@ -85,8 +90,10 @@ export function PostDialog({
   const [visibility, setVisibility] =
     useState<LegacyPost["visibility"]>("Public");
   const [galleryFiles, setGalleryFiles] = useState<FileWithPreview[]>([]);
+  const [donationId, setDonationId] = useState("");
 
   const [createPost, { isLoading: creating }] = useCreatePostMutation();
+  const { data: eligibilityData } = useGetPostEligibilityQuery();
   const [updatePost, { isLoading: updating }] = useUpdatePostMutation();
   const { data: membershipData } = useGetMyMembershipQuery();
 
@@ -127,6 +134,7 @@ export function PostDialog({
       setType("GENERAL");
       setVisibility("Public");
       setGalleryFiles([]);
+      setDonationId("");
     }
   };
 
@@ -136,6 +144,9 @@ export function PostDialog({
     }
     setOpen(nextOpen);
   };
+
+  const personalDonationPost = type === "RECAP";
+  const eligibleDonations = eligibilityData?.data ?? [];
 
   const handleSubmit = async () => {
     try {
@@ -148,6 +159,11 @@ export function PostDialog({
         return;
       }
 
+      if (!post && personalDonationPost && !donationId) {
+        toast.error("Select an unused verified donation for this recap.");
+        return;
+      }
+
       const orgId = membershipData?.data?.organizationId;
       const payload = {
         title,
@@ -157,6 +173,7 @@ export function PostDialog({
           ? "PUBLIC"
           : "PRIVATE") as ApiPost["visibility"],
         organizationId: orgId ?? undefined,
+        donationId: personalDonationPost ? donationId : undefined,
       };
 
       if (post) {
@@ -224,6 +241,31 @@ export function PostDialog({
                   className="rounded-2xl bg-zinc-50 dark:bg-zinc-900 border-border/40 min-h-[140px] p-6 text-sm font-bold leading-relaxed focus-visible:ring-primary/20 resize-none"
                 />
               </div>
+
+              {!post && personalDonationPost && (
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground px-1">
+                    Verified Donation
+                  </Label>
+                  <Select value={donationId} onValueChange={setDonationId}>
+                    <SelectTrigger className="py-7 w-full rounded-2xl bg-zinc-50 dark:bg-zinc-900 border-border/40 font-bold text-xs">
+                      <SelectValue placeholder="Select an unused verified donation" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl">
+                      {eligibleDonations.map((donation) => (
+                        <SelectItem key={donation.id} value={donation.id}>
+                          {new Date(donation.donationDate).toLocaleDateString()} · {donation.hospitalName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {eligibleDonations.length === 0 && (
+                    <p className="text-xs font-bold text-amber-600">
+                      No unused verified donation is available for a recap post.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-3">

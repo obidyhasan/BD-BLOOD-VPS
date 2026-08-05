@@ -1,6 +1,7 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import Link from "next/link";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { DialogClose } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Calendar, MapPin, Activity, Phone, Loader2 } from "lucide-react";
+import { MapPin, Activity, Phone, Loader2 } from "lucide-react";
 import { useGetBloodGroupsQuery } from "@/redux/features/blood/bloodApi";
 import { useCreateBloodRequestMutation } from "@/redux/features/bloodRequests/bloodRequestsApi";
 import {
@@ -34,10 +35,18 @@ import {
 
 const requestSchema = z.object({
   patientName: z.string().min(2, "Patient name is required"),
-  phone: z.string().min(11, "Valid phone number is required"),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^(?:\+?88)?01[3-9]\d{8}$/, "Enter a valid Bangladesh phone number"),
   bloodGroupId: z.string().min(1, "Blood group is required"),
   hospital: z.string().min(2, "Hospital name is required"),
-  quantity: z.string().min(1, "Quantity is required"),
+  quantity: z
+    .string()
+    .refine((value) => {
+      const bags = Number(value);
+      return Number.isInteger(bags) && bags >= 1 && bags <= 10;
+    }, "Quantity must be between 1 and 10 bags"),
   divisionId: z.string().min(1, "Division is required"),
   districtId: z.string().min(1, "District is required"),
   upazilaId: z.string().min(1, "Upazila is required"),
@@ -46,14 +55,12 @@ const requestSchema = z.object({
 });
 
 type RequestBloodFormProps = {
-  organizationId?: string;
   defaultDivisionId?: string;
   defaultDistrictId?: string;
   defaultUpazilaId?: string;
 };
 
 const RequestBloodForm = ({
-  organizationId,
   defaultDivisionId = "",
   defaultDistrictId = "",
   defaultUpazilaId = "",
@@ -79,8 +86,10 @@ const RequestBloodForm = ({
     },
   });
 
-  const divisionId = form.watch("divisionId");
-  const districtId = form.watch("districtId");
+  const [divisionId, districtId] = useWatch({
+    control: form.control,
+    name: ["divisionId", "districtId"],
+  });
 
   const { data: divisionsData } = useGetDivisionsQuery();
   const { data: districtsData } = useGetDistrictsQuery(
@@ -95,19 +104,27 @@ const RequestBloodForm = ({
   const onSubmit = async (data: z.infer<typeof requestSchema>) => {
     try {
       const result = await createBloodRequest({
-        requesterName: data.patientName,
-        requesterPhone: data.phone,
-        bloodGroupId: data.bloodGroupId,
-        hospitalName: data.hospital,
-        divisionId: data.divisionId,
-        districtId: data.districtId,
-        upazilaId: data.upazilaId,
-        requiredUnits: parseInt(data.quantity, 10) || 1,
-        requestType: data.type,
-        message: data.problem,
+        idempotencyKey: crypto.randomUUID(),
+        payload: {
+          requesterName: data.patientName,
+          requesterPhone: data.phone,
+          bloodGroupId: data.bloodGroupId,
+          hospitalName: data.hospital,
+          divisionId: data.divisionId,
+          districtId: data.districtId,
+          upazilaId: data.upazilaId,
+          requiredUnits: parseInt(data.quantity, 10) || 1,
+          requestType: data.type,
+          message: data.problem,
+        },
       }).unwrap();
       toast.success(
-        `Request submitted. Reference: ${result.data.referenceCode}`,
+        <span>
+          Request submitted. Reference: {result.data.referenceCode}.{" "}
+          <Link href="/blood-request/track" className="font-black underline">
+            Track request
+          </Link>
+        </span>,
       );
       form.reset({
         patientName: "",
@@ -215,6 +232,7 @@ const RequestBloodForm = ({
                     <Input
                       type="number"
                       min={1}
+                      max={10}
                       placeholder="1"
                       className="h-14 pl-12 rounded-2xl bg-zinc-50 border-border/40 focus:ring-red-500/20 font-bold"
                       {...field}

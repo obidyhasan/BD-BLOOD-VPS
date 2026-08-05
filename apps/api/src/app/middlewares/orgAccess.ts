@@ -191,7 +191,7 @@ export const assertCanManageInventory = async (
   await assertCanAccessOrganizationDashboard(user, organizationId);
 };
 
-/** Org managers may update requests linked to or notified for their organization. */
+/** Org managers may update requests handled by their organization. */
 export const assertCanUpdateBloodRequest = async (
   user: IJWTPayload,
   requestId: string,
@@ -236,22 +236,11 @@ export const assertCanUpdateBloodRequest = async (
     where: {
       id: requestId,
       isDeleted: false,
-      OR: [
-        { organizationId: { in: organizationIds } },
-        {
-          notifications: {
-            some: {
-              organizationId: { in: organizationIds },
-              isDeleted: false,
-            },
-          },
-        },
-      ],
+      handledByOrganizationId: { in: organizationIds },
     },
     select: {
       id: true,
-      organizationId: true,
-      notifications: { select: { organizationId: true } },
+      handledByOrganizationId: true,
     },
   });
 
@@ -262,10 +251,7 @@ export const assertCanUpdateBloodRequest = async (
     );
   }
 
-  return requestAccess.organizationId &&
-    organizationIds.includes(requestAccess.organizationId)
-    ? requestAccess.organizationId
-    : (requestAccess.notifications[0]?.organizationId ?? organizationIds[0]);
+  return requestAccess.handledByOrganizationId;
 };
 
 export const assertCanManageInventoryItem = async (

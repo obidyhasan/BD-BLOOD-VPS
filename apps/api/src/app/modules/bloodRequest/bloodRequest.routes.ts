@@ -9,7 +9,7 @@ import {
   rejectAssignmentZodSchema,
   requestReasonZodSchema,
   sendBloodRequestSmsZodSchema,
-  updateBloodRequestStatusZodSchema,
+  withdrawAssignmentZodSchema,
 } from "./bloodRequest.validation";
 
 const router = Router();
@@ -19,6 +19,12 @@ router.post(
   publicBloodRequestRateLimiter,
   validateRequest(createBloodRequestZodSchema),
   BloodRequestController.createRequest,
+);
+
+router.get(
+  "/track/:referenceCode",
+  publicBloodRequestRateLimiter,
+  BloodRequestController.trackRequest,
 );
 
 router.get(
@@ -44,6 +50,13 @@ router.patch(
   auth(Role.DONOR, Role.ADMIN),
   validateRequest(rejectAssignmentZodSchema),
   BloodRequestController.rejectAssignment,
+);
+
+router.post(
+  "/assignments/:assignmentId/withdraw",
+  auth(Role.DONOR, Role.ADMIN),
+  validateRequest(withdrawAssignmentZodSchema),
+  BloodRequestController.withdrawAssignment,
 );
 
 router.post(
@@ -90,19 +103,6 @@ router.get(
   BloodRequestController.getEligibleDonors,
 );
 
-router.patch(
-  "/:id/status",
-  auth(Role.ADMIN, Role.DONOR),
-  validateRequest(updateBloodRequestStatusZodSchema),
-  BloodRequestController.updateRequestStatus,
-);
-
-router.post(
-  "/:id/cancel",
-  auth(Role.ADMIN, Role.DONOR),
-  BloodRequestController.cancelRequest,
-);
-
 router.post(
   "/:id/assignments",
   auth(Role.ADMIN, Role.DONOR),
@@ -114,18 +114,6 @@ router.post(
   auth(Role.ADMIN, Role.DONOR),
   validateRequest(sendBloodRequestSmsZodSchema),
   BloodRequestController.sendRequesterSms,
-);
-
-router.post(
-  "/:id/rematch",
-  auth(Role.ADMIN),
-  BloodRequestController.rematchOrganizations,
-);
-
-router.delete(
-  "/:id",
-  auth(Role.ADMIN, Role.DONOR),
-  BloodRequestController.deleteRequest,
 );
 
 export const BloodRequestRoutes = router;

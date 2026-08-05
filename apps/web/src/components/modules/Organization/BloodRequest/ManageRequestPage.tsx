@@ -1,7 +1,7 @@
 "use client";
 
 import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
-import { ManageBloodRequestDataTable } from "./ManageBloodRequestDataTable";
+import { AdminBloodRequestsTable } from "./AdminBloodRequestsTable";
 import SmsReplyDialog from "./SmsReplyDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,30 +13,20 @@ import {
   Loader2,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useGetOrganizationBloodRequestNotificationsQuery } from "@/redux/features/bloodRequestNotifications/bloodRequestNotificationsApi";
-import { mapApiBloodRequest } from "@/lib/bloodRequest";
-import { useOrganizationDashboardContext } from "@/hooks/useOrganizationDashboardContext";
+import { useGetAllBloodRequestsQuery } from "@/redux/features/bloodRequests/bloodRequestsApi";
 
 const ManageRequestPage = () => {
-  const { organizationId } = useOrganizationDashboardContext();
-  const { data: notifData, isLoading } =
-    useGetOrganizationBloodRequestNotificationsQuery(
-      { limit: 500, organizationId },
-      { skip: !organizationId },
-    );
-  const notifications = notifData?.data ?? [];
-  const smsAlertsSent = notifications.filter((n) => n.smsSent).length;
-  const apiRows = notifications
-    .map((notification) => notification.request)
-    .filter((request): request is NonNullable<typeof request> =>
-      Boolean(request),
-    );
-  const tableData = apiRows.map(mapApiBloodRequest);
+  const { data, isLoading } = useGetAllBloodRequestsQuery({ limit: 500 });
+  const apiRows = data?.data ?? [];
 
-  const pendingRequests = apiRows.filter((r) => r.status === "PENDING");
+  const activeRequests = apiRows.filter((request) =>
+    ["SUBMITTED", "PROCESSING", "DONOR_FOUND", "FULFILLED"].includes(
+      request.status,
+    ),
+  );
   const totalRequests = apiRows.length;
-  const completedRequests = apiRows.filter((r) =>
-    ["FULFILLED", "CANCELLED", "REJECTED"].includes(r.status),
+  const completedRequests = apiRows.filter((request) =>
+    ["COMPLETED", "CANCELLED", "REJECTED"].includes(request.status),
   ).length;
 
   if (isLoading) {
@@ -65,7 +55,7 @@ const ManageRequestPage = () => {
         {[
           {
             label: "Active Operations",
-            val: pendingRequests.length,
+            val: activeRequests.length,
             sub: "Requires Immediate Action",
             icon: AlertTriangle,
             color: "text-red-500",
@@ -96,9 +86,9 @@ const ManageRequestPage = () => {
             bg: "bg-primary/10",
           },
           {
-            label: "SMS Alerts",
-            val: smsAlertsSent,
-            sub: "Dispatched to org phones",
+            label: "Donor Found",
+            val: apiRows.filter((request) => request.status === "DONOR_FOUND").length,
+            sub: "All bags committed",
             icon: Droplets,
             color: "text-violet-500",
             bg: "bg-violet-500/10",
@@ -140,7 +130,7 @@ const ManageRequestPage = () => {
       <div className="flex flex-1 flex-col">
         <div className="@container/main flex flex-1 flex-col gap-2">
           <div className="flex flex-col gap-4 md:gap-6 ">
-            <ManageBloodRequestDataTable data={tableData} />
+            <AdminBloodRequestsTable data={apiRows} />
           </div>
         </div>
       </div>

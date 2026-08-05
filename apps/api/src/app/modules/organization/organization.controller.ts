@@ -127,7 +127,46 @@ const deleteOrganization = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getOrganizationTree = catchAsync(async (_req: Request, res: Response) => {
+  const result = await OrganizationService.getOrganizationTree();
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Canonical organization hierarchy retrieved successfully!",
+    data: result,
+  });
+});
+
+const getCanonicalOrganizationByUpazila = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await OrganizationService.getCanonicalOrganizationByUpazila(
+      req.params.upazilaId,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Canonical Upazila organization retrieved successfully!",
+      data: result,
+    });
+  },
+);
+
+const getAffiliatedDonors = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrganizationService.getAffiliatedDonors(
+    req.params.organizationId,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Affiliated donors retrieved successfully!",
+    data: result,
+  });
+});
+
 export const OrganizationController = {
+  getOrganizationTree,
+  getCanonicalOrganizationByUpazila,
+  getAffiliatedDonors,
   createOrganization,
   registerOrganization,
   getAllOrganizations,

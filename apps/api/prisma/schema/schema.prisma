@@ -367,6 +367,7 @@ model BloodRequest {
   donorAlerts           BloodRequestDonorAlert[]
   assignments           RequestAssignment[]
   statusHistory         BloodRequestStatusHistory[]
+  idempotencyRecord     PublicRequestIdempotency?
 
   @@index([bloodGroupId])
   @@index([districtId])
@@ -376,6 +377,20 @@ model BloodRequest {
   @@index([requestType])
   @@index([createdAt])
   @@map("BloodRequests")
+}
+
+model PublicRequestIdempotency {
+  id          String       @id @default(uuid())
+  key         String       @unique
+  payloadHash String
+  requestId   String       @unique
+  createdAt   DateTime     @default(now())
+  expiresAt   DateTime
+
+  request BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([expiresAt])
+  @@map("public_request_idempotency")
 }
 
 model BloodRequestNotification {

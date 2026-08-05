@@ -15,7 +15,10 @@ import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
 import { bloodDonationSearchableFields } from "./bloodDonation.constant";
-import { assertCanUpdateBloodRequest } from "../../middlewares/orgAccess";
+import {
+  assertCanAccessOrganizationDashboard,
+  assertCanUpdateBloodRequest,
+} from "../../middlewares/orgAccess";
 import { enqueueOutboxEvent, requestEventKey } from "../../shared/messageOutbox";
 import { assertRequestTransition, TransitionConflict } from "../../shared/requestTransitionRules";
 
@@ -203,6 +206,16 @@ const getAllDonations = async (params: IGenericFilters, options: IOptions) => {
   };
 };
 
+const getOrganizationDonations = async (
+  user: IJWTPayload,
+  organizationId: string,
+  params: IGenericFilters,
+  options: IOptions,
+) => {
+  await assertCanAccessOrganizationDashboard(user, organizationId);
+  return getAllDonations({ ...params, organizationId }, options);
+};
+
 const getMyDonations = async (user: IJWTPayload, params: IGenericFilters, options: IOptions) => {
   const donor = await getRequesterDonor(user);
   return getAllDonations({ ...params, donorId: donor.id }, options);
@@ -306,7 +319,23 @@ const verifyDonation = async (
     await tx.$queryRaw`SELECT id FROM "bloodDonations" WHERE id = ${id} FOR UPDATE`;
     const donation = await tx.bloodDonation.findUnique({
       where: { id, isDeleted: false },
-      include: { requestAssignment: { include: { request: true } } },
+      include: {
+        requestAssignment: {
+          include: {
+            request: {
+              include: {
+                bloodGroup: { select: { groupName: true } },
+                division: { select: { name: true } },
+                district: { select: { name: true } },
+                upazila: { select: { name: true } },
+                handledByOrganization: {
+                  select: { name: true, phone: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     if (!donation) throw new ApiError(httpStatus.NOT_FOUND, "Donation not found!");
     if (donation.verificationStatus === VerificationStatus.VERIFIED) {
@@ -445,7 +474,16 @@ const verifyDonation = async (
         payload: {
           requestId: request.id,
           referenceCode: request.referenceCode,
+          bloodGroup: request.bloodGroup.groupName,
+          requiredBags: request.requiredUnits,
+          fulfilledBags: verifiedUnits,
+          division: request.division.name,
+          district: request.district.name,
+          upazila: request.upazila.name,
           hospitalName: request.hospitalName,
+          patientInformation: request.message,
+          representativeName: request.handledByOrganization?.name,
+          representativePhone: request.handledByOrganization?.phone,
         },
         aggregateType: "BloodRequest",
         aggregateId: request.id,
@@ -454,6 +492,179 @@ const verifyDonation = async (
     }
 
     return updatedDonation;
+  });
+};
+
+const rejectDonation = async (
+  user: IJWTPayload,
+  id: string,
+  reason: string,
+) =>
+  verifyDonation(user, id, {
+    verificationStatus: VerificationStatus.REJECTED,
+    notes: reason,
+  });
+
+const reverseDonation = async (
+  user: IJWTPayload,
+  id: string,
+  reason: string,
+) => {
+  if (user.role !== "ADMIN") {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Only Admin can reverse a verified donation.",
+    );
+  }
+  const actor = await getRequesterDonor(user);
+  const existing = await prisma.bloodDonation.findUnique({
+    where: { id, isDeleted: false },
+    include: { requestAssignment: { select: { requestId: true } } },
+  });
+  if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Donation not found!");
+  if (existing.verificationStatus !== VerificationStatus.VERIFIED) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "Only a verified donation can be reversed.",
+      "",
+      "DONATION_NOT_VERIFIED",
+    );
+  }
+  const requestId = existing.requestAssignment?.requestId;
+
+  return prisma.$transaction(async (tx) => {
+    if (requestId) {
+      await tx.$queryRaw`SELECT id FROM "BloodRequests" WHERE id = ${requestId} FOR UPDATE`;
+    }
+    await tx.$queryRaw`SELECT id FROM "bloodDonations" WHERE id = ${id} FOR UPDATE`;
+    const donation = await tx.bloodDonation.findUnique({
+      where: { id, isDeleted: false },
+      include: { requestAssignment: { include: { request: true } } },
+    });
+    if (!donation || donation.verificationStatus !== VerificationStatus.VERIFIED) {
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "Donation is no longer verified.",
+        "",
+        "DONATION_NOT_VERIFIED",
+      );
+    }
+
+    const reversed = await tx.bloodDonation.update({
+      where: { id },
+      data: {
+        verificationStatus: VerificationStatus.REJECTED,
+        verifiedAt: null,
+        verifiedBy: actor.id,
+        notes: `REVERSAL: ${reason}`,
+      },
+    });
+
+    await tx.post.updateMany({
+      where: { donationId: donation.id, isDeleted: false },
+      data: { isDeleted: true, deletedAt: new Date() },
+    });
+
+    if (donation.requestAssignmentId) {
+      await tx.requestAssignment.update({
+        where: { id: donation.requestAssignmentId },
+        data: {
+          status: RequestAssignmentStatus.ACCEPTED,
+          donatedAt: null,
+          donationSubmittedAt: null,
+        },
+      });
+    }
+
+    if (donation.requestAssignment?.request) {
+      const request = donation.requestAssignment.request;
+      if (
+        request.status === BloodRequestStatus.FULFILLED ||
+        request.status === BloodRequestStatus.COMPLETED
+      ) {
+        await tx.bloodRequest.update({
+          where: { id: request.id },
+          data: {
+            status: BloodRequestStatus.DONOR_FOUND,
+            fulfilledAt: null,
+            handoverCompletedAt: null,
+            completedById: null,
+            version: { increment: 1 },
+          },
+        });
+        await tx.bloodRequestStatusHistory.create({
+          data: {
+            requestId: request.id,
+            previousStatus: request.status,
+            newStatus: BloodRequestStatus.DONOR_FOUND,
+            changedById: actor.id,
+            reason: `Verified donation reversed: ${reason}`,
+          },
+        });
+      }
+    }
+
+    const latestVerified = await tx.bloodDonation.findFirst({
+      where: {
+        donorId: donation.donorId,
+        id: { not: donation.id },
+        isDeleted: false,
+        verificationStatus: VerificationStatus.VERIFIED,
+      },
+      orderBy: { donationDate: "desc" },
+      select: { donationDate: true },
+    });
+    const nextEligibleDonationDate = latestVerified
+      ? new Date(latestVerified.donationDate)
+      : null;
+    if (nextEligibleDonationDate) {
+      nextEligibleDonationDate.setMonth(nextEligibleDonationDate.getMonth() + 3);
+    }
+    await tx.donor.update({
+      where: { id: donation.donorId },
+      data: {
+        lastDonationDate: latestVerified?.donationDate ?? null,
+        nextEligibleDonationDate,
+        availabilityStatus:
+          nextEligibleDonationDate && nextEligibleDonationDate > new Date()
+            ? AvailabilityStatus.UNAVAILABLE
+            : AvailabilityStatus.AVAILABLE,
+      },
+    });
+
+    const [verifiedCount, totalCount, achievements] = await Promise.all([
+      tx.bloodDonation.count({
+        where: {
+          donorId: donation.donorId,
+          isDeleted: false,
+          verificationStatus: VerificationStatus.VERIFIED,
+        },
+      }),
+      tx.bloodDonation.count({
+        where: { donorId: donation.donorId, isDeleted: false },
+      }),
+      tx.achievement.findMany({ where: { isDeleted: false, active: true } }),
+    ]);
+    await tx.donorAchievement.deleteMany({ where: { donorId: donation.donorId } });
+    const achievementCounts: Record<AchievementThresholdType, number> = {
+      [AchievementThresholdType.VERIFIED_DONATIONS]: verifiedCount,
+      [AchievementThresholdType.TOTAL_DONATIONS]: totalCount,
+    };
+    const unlocked = achievements.filter(
+      (achievement) =>
+        achievementCounts[achievement.thresholdType] >= achievement.thresholdValue,
+    );
+    if (unlocked.length) {
+      await tx.donorAchievement.createMany({
+        data: unlocked.map((achievement) => ({
+          donorId: donation.donorId,
+          achievementId: achievement.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return reversed;
   });
 };
 
@@ -489,10 +700,13 @@ const deleteDonation = async (user: IJWTPayload, id: string) => {
 export const BloodDonationService = {
   createDonation,
   getAllDonations,
+  getOrganizationDonations,
   getMyDonations,
   getSingleDonation,
   updateDonation,
   verifyDonation,
+  rejectDonation,
+  reverseDonation,
   deleteDonation,
 };
 

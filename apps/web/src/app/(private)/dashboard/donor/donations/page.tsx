@@ -1,22 +1,21 @@
 "use client";
 
 import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
-import {
-  Droplets,
-  Calendar,
-  TrendingUp,
-} from "lucide-react";
+import { Droplets, Calendar, TrendingUp, Award } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "motion/react";
 import { useGetMyDonationsQuery } from "@/redux/features/bloodDonations/bloodDonationsApi";
+import { useGetMyAchievementsQuery } from "@/redux/features/achievements/achievementsApi";
 import { format } from "date-fns";
 
 export default function DonorDonationsPage() {
   const { data, isLoading } = useGetMyDonationsQuery();
+  const { data: achievementsData } = useGetMyAchievementsQuery();
   const donations = data?.data ?? [];
+  const achievements = achievementsData?.data ?? [];
 
-  const totalUnits = donations.reduce((acc, d) => acc + 1, 0); // 1 unit per donation record
+  const totalUnits = donations.length;
   const CENTURION_GOAL = 25;
   const progressPct = Math.min((totalUnits / CENTURION_GOAL) * 100, 100);
 
@@ -150,6 +149,36 @@ export default function DonorDonationsPage() {
                   ? `You are ${CENTURION_GOAL - totalUnits} units away from the "Centurion Donor" platinum badge.`
                   : `You have earned the "Centurion Donor" platinum badge! 🎉`}
               </p>
+            </div>
+          </Card>
+
+          <Card className="rounded-[2.5rem] border-border/40 shadow-none bg-white dark:bg-zinc-950 p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Award className="size-5 text-amber-500" />
+              <h3 className="text-lg font-black uppercase tracking-tight">
+                Achievements
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {achievements.length ? (
+                achievements.map((achievement) => (
+                  <div key={achievement.id} className="rounded-2xl border border-border/40 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-black">{achievement.title}</p>
+                      <Badge variant="outline" className="text-[9px] font-black">
+                        {achievement.unlocked ? "Unlocked" : achievement.thresholdValue}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {achievement.description}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs font-bold text-muted-foreground">
+                  Verified donation milestones will appear here.
+                </p>
+              )}
             </div>
           </Card>
         </div>

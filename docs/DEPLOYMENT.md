@@ -1,8 +1,8 @@
 # BD Blood — Production VPS Deployment Guide (Monorepo)
 
 Docker Compose running Nginx, the Next.js frontend (`apps/web`), the
-Express/Prisma backend (`apps/api`), PostgreSQL, and Redis on a single VPS,
-all from one repository.
+Express/Prisma backend (`apps/api`), a dedicated background worker,
+PostgreSQL, and Redis on a single VPS, all from one repository.
 
 ```
 Internet
@@ -16,12 +16,14 @@ Nginx (80/443, host-exposed)
 
 api:5000 ──► postgres:5432   (internal network only)
         └───► redis:6379      (internal network only, optional)
+worker ────► postgres:5432   (durable outbox + cooldown restoration)
+        └───► SMS provider
 ```
 
-The backend's notification sweeper is an in-process `setInterval`
-(`apps/api/src/app/jobs/notificationSweeper.ts`), not a separate queue —
-there is intentionally **no separate worker container**; it runs inside
-the `api` service.
+Durable SMS outbox delivery and donor cooldown restoration run in the
+separate `worker` service. API replicas do not start background intervals.
+The obsolete notification sweeper is intentionally not started because donor
+alerts may only be dispatched after an organization starts processing.
 
 ---
 
@@ -157,11 +159,11 @@ flags needed.
 ## 10. Application deployment (first run)
 
 ```bash
-docker compose logs -f api
+docker compose logs -f api worker
 ```
 
-Look for `Redis connected` (if configured), `📡 Socket.io ready`, and
-`🚀 Server is running on http://localhost:5000`. After the first
+Look for the API startup message and `BD Blood background worker started.`
+After the first
 successful run, set `RUN_SEEDS=false` in `apps/api/.env.production` and
 `docker compose up -d api` again to skip reseeding on future restarts.
 
@@ -215,7 +217,7 @@ docker compose restart          # everything
 ```bash
 cd /opt/bdblood
 git pull
-docker compose up -d --build api web
+docker compose up -d --build api worker web
 ```
 
 One `git pull` updates both apps now (single repo) — a real simplification
@@ -227,6 +229,7 @@ running throughout.
 
 ```bash
 docker compose logs -f api
+docker compose logs -f worker
 docker compose logs -f web
 docker compose logs -f nginx
 ```
@@ -236,14 +239,15 @@ docker compose logs -f nginx
 - Backend: `GET https://api.YOUR_DOMAIN.COM/api/v1/health` — `200` with
   `{ checks: { db, redis } }`, or `503` if the database is unreachable.
 - Frontend: `GET https://YOUR_DOMAIN.COM/` — `200`.
-- `docker compose ps` shows health status for all four services.
+- `docker compose ps` shows the API, worker, web, and infrastructure services.
+- `docker compose logs worker` confirms outbox and cooldown processing.
 
 ## 19. Rollback procedure
 
 ```bash
 cd /opt/bdblood
 git checkout <previous-tag-or-commit>
-docker compose up -d --build api web
+docker compose up -d --build api worker web
 ```
 
 Database rollback is a separate, manual decision — write and review a new

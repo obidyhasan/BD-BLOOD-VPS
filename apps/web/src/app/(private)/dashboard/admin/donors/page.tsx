@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
 import {
   Search,
@@ -52,7 +52,7 @@ export default function AdminDonorsPage() {
 
   const [adminUpdateDonor] = useAdminUpdateDonorMutation();
 
-  const donors = data?.data ?? [];
+  const donors = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filtered = useMemo(() => {
     return donors.filter((d) => {
@@ -83,10 +83,6 @@ export default function AdminDonorsPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, bloodFilter, statusFilter, accountStatusFilter]);
 
   const handleUpdateStatus = async () => {
     if (!statusTarget) return;
@@ -185,10 +181,19 @@ export default function AdminDonorsPage() {
             placeholder="Search by name, phone, blood group, district..."
             className="h-12 pl-11 rounded-2xl border-border/40 bg-zinc-50/50 dark:bg-zinc-900/50 font-bold text-sm"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
           />
         </div>
-        <Select value={bloodFilter} onValueChange={setBloodFilter}>
+        <Select
+          value={bloodFilter}
+          onValueChange={(value) => {
+            setBloodFilter(value);
+            setCurrentPage(1);
+          }}
+        >
           <SelectTrigger className="h-12 w-full sm:w-[160px] rounded-2xl border-border/40 font-bold text-xs uppercase ">
             <SelectValue placeholder="Blood Group" />
           </SelectTrigger>
@@ -202,7 +207,13 @@ export default function AdminDonorsPage() {
             )}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => {
+            setStatusFilter(value);
+            setCurrentPage(1);
+          }}
+        >
           <SelectTrigger className="h-12 w-full sm:w-[160px] rounded-2xl border-border/40 font-bold text-xs uppercase ">
             <SelectValue placeholder="Availability" />
           </SelectTrigger>
@@ -220,7 +231,10 @@ export default function AdminDonorsPage() {
         </Select>
         <Select
           value={accountStatusFilter}
-          onValueChange={setAccountStatusFilter}
+          onValueChange={(value) => {
+            setAccountStatusFilter(value);
+            setCurrentPage(1);
+          }}
         >
           <SelectTrigger className="h-12 w-full sm:w-[160px] rounded-2xl border-border/40 font-bold text-xs uppercase ">
             <SelectValue placeholder="Account" />
@@ -307,8 +321,8 @@ export default function AdminDonorsPage() {
                     <div className="flex gap-1">
                       <Badge
                         className={`rounded-full px-3 py-1 text-[8px] font-black uppercase  ${donor.availabilityStatus === "AVAILABLE"
-                            ? "bg-emerald-500/10 text-emerald-500"
-                            : "bg-zinc-500/10 text-zinc-500"
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-zinc-500/10 text-zinc-500"
                           }`}
                       >
                         {donor.availabilityStatus === "AVAILABLE"
@@ -317,8 +331,8 @@ export default function AdminDonorsPage() {
                       </Badge>
                       <Badge
                         className={`rounded-full px-3 py-1 text-[8px] font-black uppercase  ${donor.accountStatus === "ACTIVE"
-                            ? "bg-blue-500/5 text-blue-500"
-                            : "bg-red-500/5 text-red-500"
+                          ? "bg-blue-500/5 text-blue-500"
+                          : "bg-red-500/5 text-red-500"
                           }`}
                       >
                         {donor.accountStatus}

@@ -20,7 +20,6 @@ type RequestBloodDialogProps = {
 };
 
 const RequestBloodDialog = ({
-  organizationId,
   divisionId,
   districtId,
   upazilaId,
@@ -50,7 +49,6 @@ const RequestBloodDialog = ({
 
         <div className="no-scrollbar -mx-4 md:-mx-6 max-h-[50vh] overflow-y-auto px-4 md:px-6 relative z-10">
           <RequestBloodForm
-            organizationId={organizationId}
             defaultDivisionId={divisionId}
             defaultDistrictId={districtId}
             defaultUpazilaId={upazilaId}

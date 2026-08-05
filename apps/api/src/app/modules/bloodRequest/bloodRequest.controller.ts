@@ -9,12 +9,26 @@ import { bloodRequestFilterableFields } from "./bloodRequest.constant";
 import { IJWTPayload } from "../../types";
 
 const createRequest = catchAsync(async (req: Request, res: Response) => {
-  const result = await BloodRequestService.createRequest(req.body);
+  const idempotencyKey = String(req.header("Idempotency-Key") ?? "");
+  const result = await BloodRequestService.createRequest(req.body, idempotencyKey);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
     message: "Blood request created successfully!",
+    data: result,
+  });
+});
+
+const trackRequest = catchAsync(async (req: Request, res: Response) => {
+  const result = await BloodRequestService.trackRequest(
+    req.params.referenceCode,
+    String(req.query.phoneSuffix ?? ""),
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Blood request tracking retrieved successfully!",
     data: result,
   });
 });
@@ -57,84 +71,6 @@ const getSingleRequest = catchAsync(async (
     data: result,
   });
 });
-
-const updateRequestStatus = catchAsync(
-  async (req: Request & { user?: IJWTPayload }, res: Response) => {
-    const user = req.user as IJWTPayload;
-    const status = req.body.status as string;
-    const result =
-      status === "PROCESSING"
-        ? await BloodRequestCommandService.startProcessing(user, req.params.id)
-        : status === "REJECTED"
-          ? await BloodRequestCommandService.rejectRequest(
-              user,
-              req.params.id,
-              req.body.reason ?? "Rejected through legacy status adapter",
-            )
-          : status === "CANCELLED"
-            ? await BloodRequestCommandService.cancelRequest(
-                user,
-                req.params.id,
-                req.body.reason ?? "Cancelled through legacy status adapter",
-              )
-            : status === "COMPLETED"
-              ? await BloodRequestCommandService.completeHandover(
-                  user,
-                  req.params.id,
-                )
-              : (() => {
-                  throw Object.assign(
-                    new Error(
-                      "This status is derived by donor commitments or verified donations and cannot be set manually.",
-                    ),
-                    {
-                      statusCode: httpStatus.CONFLICT,
-                      errorCode: "INVALID_REQUEST_TRANSITION",
-                    },
-                  );
-                })();
-
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: "Blood request status updated successfully!",
-      data: result,
-    });
-  },
-);
-
-const cancelRequest = catchAsync(
-  async (req: Request & { user?: IJWTPayload }, res: Response) => {
-    const result = await BloodRequestCommandService.cancelRequest(
-      req.user as IJWTPayload,
-      req.params.id,
-      req.body?.reason ?? "Cancelled through legacy command adapter",
-    );
-
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: "Blood request cancelled successfully!",
-      data: result,
-    });
-  },
-);
-
-const deleteRequest = catchAsync(
-  async (req: Request & { user?: IJWTPayload }, res: Response) => {
-    const result = await BloodRequestService.deleteRequest(
-      req.user as IJWTPayload,
-      req.params.id,
-    );
-
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: "Blood request cancelled successfully!",
-      data: result,
-    });
-  },
-);
 
 const getEligibleDonors = catchAsync(
   async (req: Request & { user?: IJWTPayload }, res: Response) => {
@@ -219,16 +155,21 @@ const rejectAssignment = catchAsync(
   },
 );
 
-const rematchOrganizations = catchAsync(async (req: Request, res: Response) => {
-  const result = await BloodRequestService.rematchOrganizations(req.params.id);
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: "Request rematched successfully!",
-    data: result,
-  });
-});
+const withdrawAssignment = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const result = await BloodRequestCommandService.withdrawAssignment(
+      req.user as IJWTPayload,
+      req.params.assignmentId,
+      req.body.reason,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Assignment commitment withdrawn successfully!",
+      data: result,
+    });
+  },
+);
 
 const sendRequesterSms = catchAsync(
   async (req: Request & { user?: IJWTPayload }, res: Response) => {
@@ -326,18 +267,16 @@ const completeHandover = catchAsync(
 
 export const BloodRequestController = {
   createRequest,
+  trackRequest,
   getAllRequests,
   getSingleRequest,
-  updateRequestStatus,
-  cancelRequest,
   sendRequesterSms,
-  deleteRequest,
   getEligibleDonors,
   assignDonors,
   getAssignmentForDonor,
   acceptAssignment,
   rejectAssignment,
-  rematchOrganizations,
+  withdrawAssignment,
   getRequestNotifications,
   startProcessing,
   rejectRequest,

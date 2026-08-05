@@ -115,6 +115,11 @@ const navMain = [
     icon: LayoutList,
     items: [
       {
+        title: "Donation Verification",
+        url: "/dashboard/organization/donations",
+        managerOnly: true,
+      },
+      {
         title: "Blood Inventory",
         url: "/dashboard/organization/inventory",
       },

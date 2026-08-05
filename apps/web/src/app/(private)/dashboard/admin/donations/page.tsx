@@ -42,11 +42,28 @@ import {
 import { bloodGroup } from "@/constant/BloodGroup";
 import {
   useGetAllDonationsQuery,
+  useRejectDonationMutation,
+  useReverseDonationMutation,
+  useVerifyDonationMutation,
   type BloodDonation,
 } from "@/redux/features/bloodDonations/bloodDonationsApi";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { extractErrorMessage } from "@/lib/apiError";
 
-function DonationCard({ donation, i }: { donation: BloodDonation; i: number }) {
+function DonationCard({
+  donation,
+  i,
+  onVerify,
+  onReject,
+  onReverse,
+}: {
+  donation: BloodDonation;
+  i: number;
+  onVerify: (id: string) => void;
+  onReject: (id: string) => void;
+  onReverse: (id: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -210,7 +227,33 @@ function DonationCard({ donation, i }: { donation: BloodDonation; i: number }) {
               )}
             </div>
 
-            <div className="pt-6 border-t border-border/20 flex items-center justify-between">
+            <div className="flex flex-wrap gap-2 border-t border-border/20 pt-6">
+              {donation.verificationStatus === "PENDING" && (
+                <>
+                  <Button className="rounded-xl font-black" onClick={() => onVerify(donation.id)}>
+                    Verify Donation
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl font-black text-red-600"
+                    onClick={() => onReject(donation.id)}
+                  >
+                    Reject Evidence
+                  </Button>
+                </>
+              )}
+              {donation.verificationStatus === "VERIFIED" && (
+                <Button
+                  variant="outline"
+                  className="rounded-xl font-black text-red-600"
+                  onClick={() => onReverse(donation.id)}
+                >
+                  Reverse Verification
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
               <Badge
                 className={`border-none font-black text-[10px] uppercase px-4 py-1.5 rounded-full ${donation.verificationStatus === "VERIFIED"
                   ? "bg-emerald-500/10 text-emerald-500"
@@ -244,7 +287,41 @@ export default function AdminDonationsPage() {
   const itemsPerPage = 5;
 
   const { data, isLoading } = useGetAllDonationsQuery({ limit: 500 });
-  const donations = data?.data ?? [];
+  const [verifyDonation] = useVerifyDonationMutation();
+  const [rejectDonation] = useRejectDonationMutation();
+  const [reverseDonation] = useReverseDonationMutation();
+  const donations = useMemo(() => data?.data ?? [], [data?.data]);
+
+  const handleVerify = async (id: string) => {
+    try {
+      await verifyDonation({ id }).unwrap();
+      toast.success("Donation verified and donor/request projections updated.");
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to verify donation"));
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const reason = window.prompt("Why is this donation evidence being rejected?")?.trim();
+    if (!reason || reason.length < 3) return;
+    try {
+      await rejectDonation({ id, reason }).unwrap();
+      toast.info("Donation evidence rejected for donor correction.");
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to reject donation"));
+    }
+  };
+
+  const handleReverse = async (id: string) => {
+    const reason = window.prompt("Reason for reversing this verified donation?")?.trim();
+    if (!reason || reason.length < 3) return;
+    try {
+      await reverseDonation({ id, reason }).unwrap();
+      toast.warning("Verification reversed and dependent projections recalculated.");
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to reverse donation"));
+    }
+  };
 
   const organizations = useMemo(() => {
     const orgs = new Set(donations.map((d) => d.organization?.name).filter(Boolean));
@@ -446,7 +523,14 @@ export default function AdminDonationsPage() {
       {!isLoading && (
         <div className="space-y-4">
           {paginatedDonations.map((d, i) => (
-            <DonationCard key={d.id} donation={d} i={i} />
+            <DonationCard
+              key={d.id}
+              donation={d}
+              i={i}
+              onVerify={handleVerify}
+              onReject={handleReject}
+              onReverse={handleReverse}
+            />
           ))}
         </div>
       )}

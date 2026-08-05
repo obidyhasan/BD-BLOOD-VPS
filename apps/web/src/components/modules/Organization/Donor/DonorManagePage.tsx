@@ -6,23 +6,32 @@ import { DonorDataTable } from "./DonorDataTable";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { motion } from "motion/react";
-import { useGetPublicDonorsQuery } from "@/redux/features/donors/donorsApi";
+import { useGetAffiliatedDonorsQuery } from "@/redux/features/organizations/organizationsApi";
+import { useOrganizationDashboardContext } from "@/hooks/useOrganizationDashboardContext";
 
 const DonorManagePage = () => {
-  const { data, isLoading } = useGetPublicDonorsQuery({ page: 1, limit: 200 });
+  const { organizationId } = useOrganizationDashboardContext();
+  const { data, isLoading } = useGetAffiliatedDonorsQuery(organizationId, {
+    skip: !organizationId,
+  });
 
   const donors = useMemo(
     () =>
-      (data?.data ?? []).map((d) => ({
-        id: d.id,
-        slug: d.id,
-        name: d.fullName,
-        bloodGroup: d.bloodGroup?.groupName ?? "—",
-        phone: d.phoneVerified ? "Verified phone" : "Phone not verified",
-        district: d.district?.name ?? "—",
-        lastDonationDate: d.lastDonationDate ?? "",
-        available: d.availabilityStatus === "AVAILABLE",
-        accountStatus: "active" as const,
+      (data?.data ?? []).map(({ donor }) => ({
+        id: donor.id,
+        slug: donor.id,
+        name: donor.fullName,
+        bloodGroup: donor.bloodGroup?.groupName ?? "—",
+        phone: donor.phoneVerifiedAt ? (donor.phone ?? "Verified phone") : "Phone not verified",
+        district: donor.district?.name ?? "—",
+        lastDonationDate: donor.lastDonationDate ?? "",
+        available: donor.availabilityStatus === "AVAILABLE",
+        accountStatus:
+          donor.accountStatus === "ACTIVE"
+            ? ("active" as const)
+            : donor.accountStatus === "SUSPENDED"
+              ? ("suspended" as const)
+              : ("deactive" as const),
       })),
     [data],
   );
@@ -33,9 +42,9 @@ const DonorManagePage = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <DashboardHeader
             variant="clinical"
-            title="Donor Manage"
-            subtitle="Browse verified donors and see who is available right now."
-            badge="Verified Donors"
+            title="Affiliated Donors"
+            subtitle="Manage donors assigned to this Upazila organization separately from governance members."
+            badge="Organization Affiliation"
           />
 
           <Button variant="outline" className="h-14 px-6 rounded-2xl border-border/40 bg-white dark:bg-zinc-900 font-black text-[10px] uppercase  flex items-center gap-3 hover:scale-105 transition-all">
