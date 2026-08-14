@@ -14,7 +14,64 @@ import { isUuid, toSlug } from "../../shared/slugHelper";
 
 const NORMAL_DONOR_POSITION_NAME = "Normal Donor";
 
+const assertGeographicHierarchy = async (
+  db: typeof prisma | Prisma.TransactionClient,
+  divisionId: string,
+  districtId: string,
+  upazilaId: string,
+) => {
+  const upazila = await db.upazila.findFirst({
+    where: {
+      id: upazilaId,
+      districtId,
+      isDeleted: false,
+      district: {
+        divisionId,
+        isDeleted: false,
+        division: { isDeleted: false },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!upazila) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Division, District, and Upazila must form a valid geographic hierarchy.",
+    );
+  }
+};
+
+const assertUpazilaOrganizationAvailable = async (
+  db: typeof prisma | Prisma.TransactionClient,
+  upazilaId: string,
+  excludeId?: string,
+) => {
+  const existing = await db.organization.findFirst({
+    where: {
+      upazilaId,
+      level: "UPAZILA",
+      isDeleted: false,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "This Upazila already has an organization. Use its existing canonical organization.",
+    );
+  }
+};
+
 const createOrganization = async (payload: any) => {
+  await assertGeographicHierarchy(
+    prisma,
+    payload.divisionId,
+    payload.districtId,
+    payload.upazilaId,
+  );
+  await assertUpazilaOrganizationAvailable(prisma, payload.upazilaId);
   const result = await prisma.organization.create({
     data: {
       name: payload.name,
@@ -38,6 +95,14 @@ const createOrganization = async (payload: any) => {
 
 const registerOrganization = async (payload: any, donorEmail: string) => {
   return prisma.$transaction(async (tx) => {
+    await assertGeographicHierarchy(
+      tx,
+      payload.divisionId,
+      payload.districtId,
+      payload.upazilaId,
+    );
+    await assertUpazilaOrganizationAvailable(tx, payload.upazilaId);
+
     const donor = await tx.donor.findUnique({
       where: { email: donorEmail, isDeleted: false },
       select: { id: true },
@@ -125,12 +190,24 @@ const registerOrganization = async (payload: any, donorEmail: string) => {
   });
 };
 
-const getAllOrganizations = async (params: IGenericFilters, options: IOptions) => {
+const getAllOrganizations = async (
+  params: IGenericFilters,
+  options: IOptions,
+  publicOnly = true,
+) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
   const { searchTerm, ...filterData } = params as Record<string, string | undefined>;
 
-  const andConditions: Prisma.OrganizationWhereInput[] = [{ isDeleted: false }];
+  const andConditions: Prisma.OrganizationWhereInput[] = [
+    { isDeleted: false },
+    ...(publicOnly
+      ? [{
+          verificationStatus: VerificationStatus.VERIFIED,
+          organizationStatus: "ACTIVE" as const,
+        }]
+      : []),
+  ];
 
   if (searchTerm) {
     andConditions.push({
@@ -223,7 +300,11 @@ const getOrganizationBySlug = async (slug: string) => {
   }
 
   const organizations = await prisma.organization.findMany({
-    where: { isDeleted: false },
+    where: {
+      isDeleted: false,
+      verificationStatus: VerificationStatus.VERIFIED,
+      organizationStatus: "ACTIVE",
+    },
     select: { id: true, name: true },
   });
 
@@ -237,7 +318,12 @@ const getOrganizationBySlug = async (slug: string) => {
 
 const getSingleOrganization = async (id: string) => {
   const result = await prisma.organization.findUniqueOrThrow({
-    where: { id, isDeleted: false },
+    where: {
+      id,
+      isDeleted: false,
+      verificationStatus: VerificationStatus.VERIFIED,
+      organizationStatus: "ACTIVE",
+    },
     include: {
       _count: {
         select: {
@@ -284,6 +370,15 @@ const updateOrganization = async (
   });
   if (!existing) {
     throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  }
+
+  const scalarPayload = payload as Record<string, unknown>;
+  const divisionId = (scalarPayload.divisionId as string | undefined) ?? existing.divisionId;
+  const districtId = (scalarPayload.districtId as string | undefined) ?? existing.districtId;
+  const upazilaId = (scalarPayload.upazilaId as string | undefined) ?? existing.upazilaId;
+  await assertGeographicHierarchy(prisma, divisionId, districtId, upazilaId);
+  if (existing.level === "UPAZILA") {
+    await assertUpazilaOrganizationAvailable(prisma, upazilaId, existing.id);
   }
 
   return prisma.organization.update({

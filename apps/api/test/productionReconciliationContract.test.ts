@@ -98,6 +98,8 @@ test("geography seed detects partial District and Upazila data", async () => {
 
   assert.match(geographySeed, /existingDistrictCount/);
   assert.match(geographySeed, /existingUpazilaCount/);
-  assert.match(geographySeed, /existingDistrictCount >= districts\.length/);
-  assert.match(geographySeed, /existingUpazilaCount >= upazilas\.length/);
+  assert.match(geographySeed, /tx\.district\.update/);
+  assert.match(geographySeed, /tx\.upazila\.update/);
+  assert.match(geographySeed, /assertGeoSeedSourceIntegrity/);
+  assert.doesNotMatch(geographySeed, /Geo data already seeded[^\n]+skipping/);
 });

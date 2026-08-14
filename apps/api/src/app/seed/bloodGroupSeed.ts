@@ -28,11 +28,6 @@ async function seedBloodGroups(silent = false): Promise<void> {
     where: { isDeleted: false },
   });
 
-  if (existingCount >= bloodGroups.length) {
-    log("⏭️  Blood groups already seeded — skipping.");
-    return;
-  }
-
   if (existingCount > 0) {
     log(
       `⚠️  Partial seed detected (${existingCount}/${bloodGroups.length} blood groups found). Filling missing records...`,
@@ -51,6 +46,10 @@ async function seedBloodGroups(silent = false): Promise<void> {
     });
 
     if (existing) {
+      await prisma.bloodGroup.update({
+        where: { id: group.id },
+        data: { groupName: group.groupName, isDeleted: false, deletedAt: null },
+      });
       skipped++;
     } else {
       await prisma.bloodGroup.create({ data: group });

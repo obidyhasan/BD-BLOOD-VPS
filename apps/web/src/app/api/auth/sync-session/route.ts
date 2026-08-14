@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 const AUTH_COOKIE_NAMES = ["accessToken", "refreshToken"] as const;
 const COOKIE_PATHS = [
@@ -67,58 +67,14 @@ function appendExpiredAuthCookies(response: NextResponse) {
   }
 }
 
-function appendAuthCookie(
-  response: NextResponse,
-  name: (typeof AUTH_COOKIE_NAMES)[number],
-  value: string,
-  maxAge: number,
-) {
-  response.headers.append(
-    "Set-Cookie",
-    buildCookie(name, value, {
-      path: "/",
-      maxAge,
-      ...(isProd ? { domain: AUTH_COOKIE_DOMAIN } : {}),
-    }),
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "Token synchronization is disabled; use the API cookie login flow.",
+    },
+    { status: 410 },
   );
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = (await request.json()) as {
-      accessToken?: string;
-      refreshToken?: string;
-    };
-
-    if (!body.accessToken || typeof body.accessToken !== "string") {
-      return NextResponse.json(
-        { success: false, message: "Access token is required" },
-        { status: 400 },
-      );
-    }
-
-    const response = NextResponse.json({ success: true });
-
-    // Clear duplicate path/domain variants first, then write one canonical host cookie.
-    appendExpiredAuthCookies(response);
-    appendAuthCookie(response, "accessToken", body.accessToken, 60 * 60);
-
-    if (body.refreshToken && typeof body.refreshToken === "string") {
-      appendAuthCookie(
-        response,
-        "refreshToken",
-        body.refreshToken,
-        60 * 60 * 24 * 30,
-      );
-    }
-
-    return response;
-  } catch {
-    return NextResponse.json(
-      { success: false, message: "Failed to sync session" },
-      { status: 500 },
-    );
-  }
 }
 
 export async function DELETE() {

@@ -3,10 +3,9 @@ import { AuthState, User } from "./auth.types";
 
 const getInitialState = (): AuthState => {
   if (typeof window === "undefined") {
-    return { user: null, accessToken: null };
+    return { user: null };
   }
 
-  const token = localStorage.getItem("accessToken");
   const userStr = localStorage.getItem("user");
 
   let parsedUser = null;
@@ -20,7 +19,6 @@ const getInitialState = (): AuthState => {
 
   return {
     user: parsedUser,
-    accessToken: token || null,
   };
 };
 
@@ -32,13 +30,11 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (
       state,
-      action: PayloadAction<{ user: User; token: string }>,
+      action: PayloadAction<{ user: User }>,
     ) => {
-      const { user, token } = action.payload;
+      const { user } = action.payload;
       state.user = user;
-      state.accessToken = token;
       if (typeof window !== "undefined") {
-        localStorage.setItem("accessToken", token);
         localStorage.setItem("user", JSON.stringify(user));
       }
     },
@@ -52,9 +48,7 @@ const authSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
-      state.accessToken = null;
       if (typeof window !== "undefined") {
-        localStorage.removeItem("accessToken");
         localStorage.removeItem("user");
       }
     },

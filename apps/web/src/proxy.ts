@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { BACKEND_API_URL } from "@/lib/backend";
+import { readSetCookieValue } from "@/lib/setCookieHeader";
 
 // Auth routes that authenticated users should not access
 const authRoutes = [
@@ -74,9 +75,8 @@ async function refreshAccessToken(refreshToken: string) {
     cache: "no-store",
   });
   if (!res.ok) return null;
-  const json = await res.json().catch(() => null);
-  const accessToken = json?.data?.accessToken ?? null;
-  const nextRefreshToken = json?.data?.refreshToken ?? null;
+  const accessToken = readSetCookieValue(res.headers, "accessToken");
+  const nextRefreshToken = readSetCookieValue(res.headers, "refreshToken");
   return { accessToken, refreshToken: nextRefreshToken };
 }
 

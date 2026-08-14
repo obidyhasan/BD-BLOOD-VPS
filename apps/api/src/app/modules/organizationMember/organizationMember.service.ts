@@ -16,27 +16,12 @@ import {
   canAccessOrganizationDashboard,
 } from "../../middlewares/orgAccess";
 import { IJWTPayload } from "../../types";
-import { GEO_ORGANIZATION_TYPES } from "../../shared/geoOrganizationTypes";
 
 const NORMAL_DONOR_POSITION_NAME = "Normal Donor";
 
-/**
- * Design decision — representing "Central/National" leadership:
- *
- * Every `Organization` row requires a concrete divisionId/districtId/upazilaId
- * (see schema), so an Organization can never itself represent a
- * location-less "Central" entity without inventing a fake geo location —
- * that would be misleading data and would need seed changes just to host a
- * handful of national leaders.
- *
- * `OrganizationMember.organizationId` is already nullable, and the admin
- * members list already renders a null organizationId as "Independent"
- * (see apps/web .../organization-members/page.tsx). So Central/National
- * leadership is represented as OrganizationMember rows with
- * `organizationId: null` — no new field or seeded org needed. A "no
- * location given" leadership query below is therefore scoped to
- * `organizationId: null` rather than to some sentinel organization.
- */
+// Every active governance scope, including National, resolves to a canonical
+// Organization row. Nullable organization IDs are retained only for legacy
+// records and are not produced by new assignments.
 const LEADERSHIP_MEMBER_CAP = 11;
 
 const governanceSeatKey = (
@@ -56,7 +41,6 @@ type LeadershipScope = {
  * Resolves a leadership scope down to the organizationId to filter on.
  * Returns:
  *  - a string  -> filter to that specific organizationId
- *  - null      -> central/national scope (organizationId IS NULL)
  *  - "NONE"    -> no organization matches the requested division/district
  *                 (caller should short-circuit to an empty result)
  */
@@ -71,7 +55,8 @@ const resolveLeadershipOrganizationId = async (
     const org = await prisma.organization.findFirst({
       where: {
         districtId: scope.districtId,
-        type: GEO_ORGANIZATION_TYPES.district,
+        level: "DISTRICT",
+        canonical: true,
         isDeleted: false,
       },
       select: { id: true },
@@ -83,7 +68,8 @@ const resolveLeadershipOrganizationId = async (
     const org = await prisma.organization.findFirst({
       where: {
         divisionId: scope.divisionId,
-        type: GEO_ORGANIZATION_TYPES.division,
+        level: "DIVISION",
+        canonical: true,
         isDeleted: false,
       },
       select: { id: true },
@@ -91,8 +77,11 @@ const resolveLeadershipOrganizationId = async (
     return org?.id ?? NO_MATCHING_ORGANIZATION;
   }
 
-  // No location given at all -> central/national leadership.
-  return null;
+  const central = await prisma.organization.findFirst({
+    where: { level: "CENTRAL", canonical: true, isDeleted: false },
+    select: { id: true },
+  });
+  return central?.id ?? NO_MATCHING_ORGANIZATION;
 };
 
 const publicMemberDonorSelect = {
@@ -205,6 +194,14 @@ const getMyMembership = async (user: IJWTPayload) => {
 };
 
 const getPublicLeadershipMembers = async (scope: LeadershipScope) => {
+  if (
+    !scope.organizationId &&
+    !scope.divisionId &&
+    !scope.districtId &&
+    scope.level === PositionLevel.MANAGEMENT
+  ) {
+    return [];
+  }
   const resolvedOrganizationId = await resolveLeadershipOrganizationId(scope);
 
   if (resolvedOrganizationId === NO_MATCHING_ORGANIZATION) {
@@ -387,13 +384,14 @@ const assertLeadershipCapacityAvailable = async (
  * the rest.
  */
 const assertNationalAdminSeatReserved = async (
+  organizationId: string,
   excludeDonorId?: string,
   db: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
 ) => {
   const [activeCount, adminSeatTaken] = await Promise.all([
     db.organizationMember.count({
       where: {
-        organizationId: null,
+        organizationId,
         status: OrganizationMemberStatus.ACTIVE,
         isDeleted: false,
         ...(excludeDonorId ? { donorId: { not: excludeDonorId } } : {}),
@@ -402,7 +400,7 @@ const assertNationalAdminSeatReserved = async (
     }),
     db.organizationMember.findFirst({
       where: {
-        organizationId: null,
+        organizationId,
         status: OrganizationMemberStatus.ACTIVE,
         isDeleted: false,
         ...(excludeDonorId ? { donorId: { not: excludeDonorId } } : {}),
@@ -444,22 +442,28 @@ const updateMemberStatus = async (
       existing.status !== OrganizationMemberStatus.ACTIVE
     ) {
       if (
-        existing.organization?.level === "UPAZILA" &&
+        (existing.organization?.level === "UPAZILA" ||
+          existing.organization?.level === "CENTRAL") &&
         existing.category === GovernanceCategory.ADVISOR
       ) {
         throw new ApiError(
           httpStatus.CONFLICT,
-          "Upazila organizations do not permit Advisor appointments.",
+          `${existing.organization.level === "CENTRAL" ? "National" : "Upazila"} organizations do not permit Advisor appointments.`,
         );
       }
       const scope = `${existing.organizationId ?? "CENTRAL"}:${existing.category}`;
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
       if (
-        existing.organizationId === null &&
+        existing.organization?.level === "CENTRAL" &&
+        existing.organizationId !== null &&
         existing.position.level === PositionLevel.EXECUTIVE &&
         existing.donor.role !== Role.ADMIN
       ) {
-        await assertNationalAdminSeatReserved(existing.donorId, tx);
+        await assertNationalAdminSeatReserved(
+          existing.organizationId,
+          existing.donorId,
+          tx,
+        );
       }
       await assertLeadershipCapacityAvailable(
         existing.organizationId,
@@ -528,12 +532,25 @@ const assignOrganizationMember = async (
   }
 
   const appointingDonor = await getRequesterDonor(user);
-  let organizationId: string | null;
+  let organizationId: string;
 
   if (user.role === Role.ADMIN) {
-    // Admin may omit organizationId to assign into the National/Central
-    // scope (organizationId: null) — see the design note above.
-    organizationId = payload.organizationId ?? null;
+    // Omitting organizationId selects the seeded canonical Central scope.
+    if (payload.organizationId) {
+      organizationId = payload.organizationId;
+    } else {
+      const central = await prisma.organization.findFirst({
+        where: { level: "CENTRAL", canonical: true, isDeleted: false },
+        select: { id: true },
+      });
+      if (!central) {
+        throw new ApiError(
+          httpStatus.UNPROCESSABLE_ENTITY,
+          "Canonical Central organization is missing. Run the platform seed before assigning National leadership.",
+        );
+      }
+      organizationId = central.id;
+    }
   } else {
     const managerMembership = await prisma.organizationMember.findFirst({
       where: {
@@ -585,13 +602,11 @@ const assignOrganizationMember = async (
   }
 
   return prisma.$transaction(async (tx) => {
-    const organization = organizationId
-      ? await tx.organization.findUnique({
-          where: { id: organizationId, isDeleted: false },
-          select: { level: true },
-        })
-      : null;
-    if (organizationId && !organization) {
+    const organization = await tx.organization.findUnique({
+      where: { id: organizationId, isDeleted: false },
+      select: { level: true },
+    });
+    if (!organization) {
       throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
     }
     if (
@@ -604,23 +619,23 @@ const assignOrganizationMember = async (
       );
     }
     if (
-      organization?.level === "UPAZILA" &&
+      (organization.level === "UPAZILA" || organization.level === "CENTRAL") &&
       category === GovernanceCategory.ADVISOR
     ) {
       throw new ApiError(
         httpStatus.CONFLICT,
-        "Upazila organizations do not permit Advisor appointments.",
+        `${organization.level === "CENTRAL" ? "National" : "Upazila"} organizations do not permit Advisor appointments.`,
       );
     }
     const scope = `${organizationId ?? "CENTRAL"}:${category}`;
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${scope}))`;
 
     if (
-      organizationId === null &&
+      organization.level === "CENTRAL" &&
       position.level === PositionLevel.EXECUTIVE &&
       donor.role !== Role.ADMIN
     ) {
-      await assertNationalAdminSeatReserved(payload.donorId, tx);
+      await assertNationalAdminSeatReserved(organizationId, payload.donorId, tx);
     }
     await assertLeadershipCapacityAvailable(
       organizationId,

@@ -179,5 +179,5 @@ test("governance assignment and activation serialize capacity checks", async () 
   const lockMatches = membershipService.match(/pg_advisory_xact_lock/g) ?? [];
   assert.ok(lockMatches.length >= 2);
   assert.match(membershipService, /assertLeadershipCapacityAvailable\(/);
-  assert.match(membershipService, /Upazila organizations do not permit Advisor appointments/);
+  assert.match(membershipService, /do not permit Advisor appointments/);
 });

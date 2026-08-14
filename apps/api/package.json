@@ -23,6 +23,7 @@
     "dev": "ts-node-dev --respawn --transpile-only ./src/server.ts",
     "dev:worker": "tsx watch src/worker.ts",
     "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
     "build": "tsc && node -e \"require('fs').cpSync('src/app/views','dist/app/views',{recursive:true})\"",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",

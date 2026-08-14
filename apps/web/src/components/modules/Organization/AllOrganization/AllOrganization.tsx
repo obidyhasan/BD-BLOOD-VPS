@@ -6,8 +6,8 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import TeamCard from "@/components/modules/Home/OurTeam/TeamCard";
 import OrganizationCard from "./OrganizationCard";
 import { Filter, Globe, Newspaper, Network, Users } from "lucide-react";
@@ -39,9 +39,23 @@ const AllOrganization = ({
   initialPosts,
 }: AllOrganizationProps) => {
   const router = useRouter();
-  const [divisionId, setDivisionId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [upazilaId, setUpazilaId] = useState("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [divisionId, setDivisionId] = useState(() => searchParams.get("divisionId") ?? "");
+  const [districtId, setDistrictId] = useState(() => searchParams.get("districtId") ?? "");
+  const [upazilaId, setUpazilaId] = useState(() => searchParams.get("upazilaId") ?? "");
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries({ divisionId, districtId, upazilaId })) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const query = next.toString();
+    if (query !== searchParams.toString()) {
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }, [districtId, divisionId, pathname, router, searchParams, upazilaId]);
 
   const orgQueryParams = useMemo(
     () =>
@@ -75,7 +89,10 @@ const AllOrganization = ({
       { skip: !!initialLeadership?.length && !divisionId && !districtId },
     );
   const { data: advisorData, isLoading: advisorLoading } =
-    useGetPublicLeadershipMembersQuery({ level: "MANAGEMENT", ...leadershipScope });
+    useGetPublicLeadershipMembersQuery(
+      { level: "MANAGEMENT", ...leadershipScope },
+      { skip: !divisionId && !districtId },
+    );
 
   const { data: postsData } = useGetPublicPostsQuery(
     {
@@ -179,7 +196,9 @@ const AllOrganization = ({
               <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-6">
                 <TabsList className="bg-zinc-100 dark:bg-zinc-900 rounded-2xl py-7 px-2 h-14 w-full md:w-auto">
                   <TabsTrigger value="committee" className="rounded-md px-8 py-5 h-full font-bold text-md tracking-wider">Committee</TabsTrigger>
-                  <TabsTrigger value="advisor" className="rounded-md px-8 py-5 h-full font-bold text-md tracking-wider">Advisor</TabsTrigger>
+                  {(divisionId || districtId) && (
+                    <TabsTrigger value="advisor" className="rounded-md px-8 py-5 h-full font-bold text-md tracking-wider">Advisor</TabsTrigger>
+                  )}
                 </TabsList>
 
                 <LocationSelector
@@ -269,7 +288,7 @@ const AllOrganization = ({
                       )}
                   </div>
                 </TabsContent>
-                <TabsContent value="advisor" className="m-0 focus-visible:outline-none">
+                {(divisionId || districtId) && <TabsContent value="advisor" className="m-0 focus-visible:outline-none">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                     {advisorLoading &&
                       Array.from({ length: 4 }).map((_, index) => (
@@ -291,7 +310,7 @@ const AllOrganization = ({
                       </p>
                     )}
                   </div>
-                </TabsContent>
+                </TabsContent>}
               </div>
             </Tabs>
           </div>
@@ -380,4 +399,3 @@ function HierarchyNode({
 }
 
 export default AllOrganization;
-

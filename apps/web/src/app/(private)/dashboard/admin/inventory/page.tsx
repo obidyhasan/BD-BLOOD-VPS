@@ -75,6 +75,7 @@ export default function AdminInventoryPage() {
   );
   const { data: organizationsData } = useGetAllOrganizationsQuery({
     limit: 500,
+    adminView: true,
     divisionId: divisionId !== ALL_VALUE ? divisionId : undefined,
     districtId: districtId !== ALL_VALUE ? districtId : undefined,
     upazilaId: upazilaId !== ALL_VALUE ? upazilaId : undefined,

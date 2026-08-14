@@ -20,10 +20,18 @@ export const initSocket = (httpServer: HttpServer) => {
 
   io.use(async (socket, next) => {
     try {
-      const rawToken =
+      const bearerToken =
         (typeof socket.handshake.auth?.token === "string" &&
           socket.handshake.auth.token.trim()) ||
         "";
+      const cookieToken = (socket.handshake.headers.cookie ?? "")
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith("accessToken="))
+        ?.slice("accessToken=".length);
+      const rawToken = cookieToken
+        ? decodeURIComponent(cookieToken)
+        : bearerToken;
 
       if (!rawToken) {
         return next(new Error("Unauthorized"));

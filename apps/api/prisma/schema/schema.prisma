@@ -19,7 +19,9 @@ model Division {
   bloodDonations BloodDonation[]
   bloodRequests  BloodRequest[]
   events         Event[]
+  organizations  Organization[]
 
+  @@unique([name])
   @@map("divisions")
 }
 
@@ -38,7 +40,9 @@ model District {
   bloodDonations BloodDonation[]
   bloodRequests  BloodRequest[]
   events         Event[]
+  organizations  Organization[]
 
+  @@unique([divisionId, name])
   @@index([divisionId])
   @@map("districts")
 }
@@ -58,7 +62,9 @@ model Upazila {
   bloodDonations    BloodDonation[]
   bloodRequests     BloodRequest[]
   events            Event[]
+  organizations     Organization[]
 
+  @@unique([districtId, name])
   @@index([districtId])
   @@map("upazilas")
 }
@@ -231,6 +237,9 @@ model Organization {
   donorAffiliations         DonorOrganizationAffiliation[]
   parent                    Organization?                  @relation("OrganizationHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   children                  Organization[]                 @relation("OrganizationHierarchy")
+  division                  Division                       @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district                  District                       @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila                   Upazila                        @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   handledBloodRequests      BloodRequest[]                 @relation("HandledBloodRequests")
   inventory                 OrganizationBloodInventory[]
   events                    Event[]
@@ -242,6 +251,8 @@ model Organization {
   appointments              DonationAppointment[]
 
   @@index([districtId])
+  @@index([divisionId])
+  @@index([upazilaId])
   @@index([level])
   @@index([parentId])
   @@index([canonical])
@@ -382,11 +393,11 @@ model BloodRequest {
 }
 
 model PublicRequestIdempotency {
-  id          String       @id @default(uuid())
-  key         String       @unique
+  id          String   @id @default(uuid())
+  key         String   @unique
   payloadHash String
-  requestId   String       @unique
-  createdAt   DateTime     @default(now())
+  requestId   String   @unique
+  createdAt   DateTime @default(now())
   expiresAt   DateTime
 
   request BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: Cascade)

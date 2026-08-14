@@ -9,7 +9,6 @@ import { notificationsApi } from "@/redux/features/notifications/notificationsAp
 const getSocketBaseUrls = () => (SOCKET_URLS.length ? SOCKET_URLS : [SOCKET_URL]);
 
 let sharedSocket: Socket | null = null;
-let sharedSocketToken: string | null = null;
 let sharedSocketUrlIndex = 0;
 
 function teardownSharedSocket() {
@@ -18,15 +17,14 @@ function teardownSharedSocket() {
     sharedSocket.disconnect();
   }
   sharedSocket = null;
-  sharedSocketToken = null;
 }
 
 export function useNotificationSocket(enabled = true) {
   const dispatch = useAppDispatch();
-  const token = useAppSelector((state) => state.auth.accessToken);
+  const authenticated = useAppSelector((state) => Boolean(state.auth.user));
 
   useEffect(() => {
-    if (!enabled || !token) {
+    if (!enabled || !authenticated) {
       // Logged out (or explicitly disabled): tear down any lingering
       // connection so it isn't left authenticated as a previous user.
       teardownSharedSocket();
@@ -53,11 +51,10 @@ export function useNotificationSocket(enabled = true) {
       const socketUrl = socketUrls[sharedSocketUrlIndex] ?? socketUrls[0];
 
       sharedSocket = io(socketUrl, {
-        auth: { token },
+        withCredentials: true,
         transports: ["websocket", "polling"],
         autoConnect: true,
       });
-      sharedSocketToken = token;
       bindSocketEvents(sharedSocket);
     }
 
@@ -70,13 +67,8 @@ export function useNotificationSocket(enabled = true) {
       connectSocket();
     }
 
-    if (!sharedSocket || sharedSocketToken !== token) {
-      // No socket yet, or the token has changed since the current one was
-      // established (e.g. a different account logged in in this tab).
-      // Mutating `.auth` on an already-connected socket wouldn't cause the
-      // server to re-validate it, since auth is only checked at the initial
-      // handshake — so a real reconnect is required, not just an in-place
-      // auth swap.
+    if (!sharedSocket) {
+      // Socket.IO sends the HttpOnly cookie during its authenticated handshake.
       teardownSharedSocket();
       connectSocket();
     } else {
@@ -91,5 +83,5 @@ export function useNotificationSocket(enabled = true) {
         unbindSocketEvents(sharedSocket);
       }
     };
-  }, [dispatch, enabled, token]);
+  }, [authenticated, dispatch, enabled]);
 }

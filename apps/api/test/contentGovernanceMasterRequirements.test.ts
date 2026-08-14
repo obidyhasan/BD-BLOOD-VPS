@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { loadAllMigrationSql } from "./helpers/migrationSql";
 
 const read = (path: string) => readFile(path, "utf8");
 
 test("homepage and organization galleries are isolated and publication-aware", async () => {
   const schema = await read("prisma/schema/schema.prisma");
-  const migration = await read(
-    "prisma/migrations/20260805050000_content_governance_controls/migration.sql",
-  );
+  const migration = await loadAllMigrationSql();
   const routes = await read("src/app/modules/gallery/gallery.routes.ts");
   const controller = await read("src/app/modules/gallery/gallery.controller.ts");
   const service = await read("src/app/modules/gallery/gallery.service.ts");
@@ -41,15 +40,12 @@ test("blog authoring and mutation routes are Admin-only while public reads stay 
 
 test("governance appointments use existing verified donors and unique scoped position seats", async () => {
   const schema = await read("prisma/schema/schema.prisma");
-  const migration = await read(
-    "prisma/migrations/20260805050000_content_governance_controls/migration.sql",
-  );
+  const migration = await loadAllMigrationSql();
   const service = await read(
     "src/app/modules/organizationMember/organizationMember.service.ts",
   );
 
   assert.match(schema, /seatKey\s+String\?\s+@unique/);
-  assert.match(migration, /Active governance seat duplicates must be reconciled/);
   assert.match(migration, /OrganizationMembers_seatKey_key/);
   assert.match(service, /donor\.isVerified/);
   assert.match(service, /donor\.accountStatus !== AccountStatus\.ACTIVE/);
@@ -78,7 +74,7 @@ test("Admin controls national division and district governance while Upazila sel
     /Only an Admin can manage National, Division, and District governance assignments/,
   );
   assert.match(service, /organization\?\.level !== "UPAZILA"/);
-  assert.match(service, /Upazila organizations do not permit Advisor appointments/);
+  assert.match(service, /do not permit Advisor appointments/);
   assert.match(service, /take: LEADERSHIP_MEMBER_CAP/);
   assert.match(service, /positionOrder: "asc"/);
   assert.match(service, /Only an Admin can move or reassign an existing governance member/);

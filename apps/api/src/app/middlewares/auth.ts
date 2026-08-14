@@ -4,7 +4,7 @@ import { jwtHelper } from "../helper/jwtHelper";
 import config from "../config";
 import ApiError from "../errors/ApiError";
 import { prisma } from "../shared/prisma";
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, Role } from "@prisma/client";
 import { cacheHelper } from "../helper/cacheHelper";
 
 // This lookup runs on every single authenticated request (it's the DB
@@ -23,7 +23,7 @@ const AUTH_USER_CACHE_TTL_SECONDS = 5;
 
 type AuthCheckFields = {
   isVerified: boolean;
-  role: string;
+  role: Role;
   accountStatus: AccountStatus;
   isDeleted: boolean;
 };
@@ -68,13 +68,6 @@ const auth = (...roles: string[]) => {
         config.jwt.jwt_access_secret as string,
       );
 
-      if (roles.length && !roles.includes(verifyUser.role)) {
-        throw new ApiError(
-          httpStatus.UNAUTHORIZED,
-          "You are not permitted to view this route!",
-        );
-      }
-
       const isUserExist = await getAuthCheckUser(verifyUser.email);
 
       if (!isUserExist)
@@ -102,7 +95,16 @@ const auth = (...roles: string[]) => {
       if (isUserExist.isDeleted)
         throw new ApiError(httpStatus.BAD_REQUEST, "User has been deleted");
 
-      req.user = verifyUser;
+      if (roles.length && !roles.includes(isUserExist.role)) {
+        throw new ApiError(
+          httpStatus.FORBIDDEN,
+          "You are not permitted to view this route!",
+        );
+      }
+
+      // Use the current database role so demotions take effect immediately
+      // instead of waiting for the access-token role claim to expire.
+      req.user = { ...verifyUser, role: isUserExist.role };
 
       next();
     } catch (error) {

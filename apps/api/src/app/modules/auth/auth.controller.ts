@@ -22,7 +22,8 @@ const login = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "User logged in successfully!",
-      data: { accessToken, refreshToken, user },
+      // Tokens are delivered only through HttpOnly cookies.
+      data: { user },
     });
   },
 );
@@ -41,10 +42,9 @@ const refreshToken = catchAsync(
       statusCode: httpStatus.OK,
       success: true,
       message: "Access token generated successfully!",
-      data: {
-        accessToken: result.accessToken,
-        refreshToken,
-      },
+      // Refreshed credentials remain HttpOnly; server-side web mediation reads
+      // the Set-Cookie headers instead of a browser-readable JSON token.
+      data: {},
     });
   },
 );

@@ -2,10 +2,10 @@ import { createHash } from "crypto";
 import {
   OrganizationLevel,
   OrganizationStatus,
+  Prisma,
   VerificationStatus,
 } from "@prisma/client";
 import { prisma } from "../shared/prisma";
-import { GEO_ORGANIZATION_TYPES } from "../shared/geoOrganizationTypes";
 
 const deterministicUuid = (scope: string) => {
   const hex = createHash("sha256")
@@ -17,12 +17,16 @@ const deterministicUuid = (scope: string) => {
 
 const organizationPhone = () => {
   const phone = process.env.ORGANIZATION_SEED_PHONE?.trim();
-  if (!phone) {
-    throw new Error(
-      "ORGANIZATION_SEED_PHONE is required to seed missing canonical organizations.",
+  if (phone) return phone;
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      "ORGANIZATION_SEED_PHONE is unset; using the development-only placeholder +8801000000000.",
     );
+    return "+8801000000000";
   }
-  return phone;
+  throw new Error(
+    "ORGANIZATION_SEED_PHONE is required to seed missing canonical organizations in production.",
+  );
 };
 
 export const seedCanonicalOrganizations = async () => {
@@ -74,25 +78,37 @@ export const seedCanonicalOrganizations = async () => {
     where: { canonical: true, isDeleted: false },
   });
 
-  if (canonicalCount >= expectedCount) {
-    console.log("⏭️  Canonical organization hierarchy already seeded — skipping.");
-    return;
-  }
+  console.log(
+    `Verifying ${expectedCount} canonical organization nodes (${canonicalCount} currently active).`,
+  );
 
   const phone = organizationPhone();
-  let created = 0;
-
-  let central = await prisma.organization.findFirst({
-    where: {
-      level: OrganizationLevel.CENTRAL,
-      canonical: true,
-      isDeleted: false,
-    },
+  const existing = await prisma.organization.findMany({
+    where: { canonical: true, isDeleted: false },
+    select: { id: true, level: true, divisionId: true, districtId: true, upazilaId: true },
   });
-  if (!central) {
-    central = await prisma.organization.create({
-      data: {
-        id: deterministicUuid("CENTRAL"),
+  const existingCentral = existing.find((item) => item.level === OrganizationLevel.CENTRAL);
+  const existingDivisionByGeo = new Map(
+    existing
+      .filter((item) => item.level === OrganizationLevel.DIVISION)
+      .map((item) => [item.divisionId, item.id]),
+  );
+  const existingDistrictByGeo = new Map(
+    existing
+      .filter((item) => item.level === OrganizationLevel.DISTRICT)
+      .map((item) => [item.districtId, item.id]),
+  );
+  const existingUpazilaIds = new Set(
+    existing
+      .filter((item) => item.level === OrganizationLevel.UPAZILA)
+      .map((item) => item.upazilaId),
+  );
+
+  const centralId = existingCentral?.id ?? deterministicUuid("CENTRAL");
+  const centralRows: Prisma.OrganizationCreateManyInput[] = existingCentral
+    ? []
+    : [{
+        id: centralId,
         name: "BD Blood National Organization",
         phone,
         address: "Bangladesh",
@@ -101,14 +117,13 @@ export const seedCanonicalOrganizations = async () => {
         upazilaId: firstUpazila.id,
         level: OrganizationLevel.CENTRAL,
         canonical: true,
-        type: "Central Organization",
         description: "National coordination organization for the BD Blood network.",
         organizationStatus: OrganizationStatus.ACTIVE,
         verificationStatus: VerificationStatus.VERIFIED,
-      },
-    });
-    created += 1;
-  }
+      }];
+  const divisionRows: Prisma.OrganizationCreateManyInput[] = [];
+  const districtRows: Prisma.OrganizationCreateManyInput[] = [];
+  const upazilaRows: Prisma.OrganizationCreateManyInput[] = [];
 
   for (const division of divisions) {
     const representativeDistrict = division.districts.find(
@@ -117,97 +132,77 @@ export const seedCanonicalOrganizations = async () => {
     const representativeUpazila = representativeDistrict?.upazilas[0];
     if (!representativeDistrict || !representativeUpazila) continue;
 
-    const divisionOrganization =
-      (await prisma.organization.findFirst({
-        where: {
-          divisionId: division.id,
-          level: OrganizationLevel.DIVISION,
-          canonical: true,
-          isDeleted: false,
-        },
-      })) ??
-      (await prisma.organization.create({
-        data: {
-          id: deterministicUuid(`DIVISION:${division.id}`),
-          name: `${division.name} Division Organization`,
-          phone,
-          address: `${division.name} Division, Bangladesh`,
-          divisionId: division.id,
-          districtId: representativeDistrict.id,
-          upazilaId: representativeUpazila.id,
-          level: OrganizationLevel.DIVISION,
-          parentId: central.id,
-          canonical: true,
-          type: GEO_ORGANIZATION_TYPES.division,
-          organizationStatus: OrganizationStatus.ACTIVE,
-          verificationStatus: VerificationStatus.VERIFIED,
-        },
-      }));
+    const divisionOrganizationId =
+      existingDivisionByGeo.get(division.id) ??
+      deterministicUuid(`DIVISION:${division.id}`);
+    if (!existingDivisionByGeo.has(division.id)) {
+      divisionRows.push({
+        id: divisionOrganizationId,
+        name: `${division.name} Division Organization`,
+        phone,
+        address: `${division.name} Division, Bangladesh`,
+        divisionId: division.id,
+        districtId: representativeDistrict.id,
+        upazilaId: representativeUpazila.id,
+        level: OrganizationLevel.DIVISION,
+        parentId: centralId,
+        canonical: true,
+        organizationStatus: OrganizationStatus.ACTIVE,
+        verificationStatus: VerificationStatus.VERIFIED,
+      });
+    }
 
     for (const district of division.districts) {
       const representativeDistrictUpazila = district.upazilas[0];
       if (!representativeDistrictUpazila) continue;
-
-      const districtOrganization =
-        (await prisma.organization.findFirst({
-          where: {
-            districtId: district.id,
-            level: OrganizationLevel.DISTRICT,
-            canonical: true,
-            isDeleted: false,
-          },
-        })) ??
-        (await prisma.organization.create({
-          data: {
-            id: deterministicUuid(`DISTRICT:${district.id}`),
-            name: `${district.name} District Organization`,
-            phone,
-            address: `${district.name}, ${division.name}, Bangladesh`,
-            divisionId: division.id,
-            districtId: district.id,
-            upazilaId: representativeDistrictUpazila.id,
-            level: OrganizationLevel.DISTRICT,
-            parentId: divisionOrganization.id,
-            canonical: true,
-            type: GEO_ORGANIZATION_TYPES.district,
-            organizationStatus: OrganizationStatus.ACTIVE,
-            verificationStatus: VerificationStatus.VERIFIED,
-          },
-        }));
+      const districtOrganizationId =
+        existingDistrictByGeo.get(district.id) ??
+        deterministicUuid(`DISTRICT:${district.id}`);
+      if (!existingDistrictByGeo.has(district.id)) {
+        districtRows.push({
+          id: districtOrganizationId,
+          name: `${district.name} District Organization`,
+          phone,
+          address: `${district.name}, ${division.name}, Bangladesh`,
+          divisionId: division.id,
+          districtId: district.id,
+          upazilaId: representativeDistrictUpazila.id,
+          level: OrganizationLevel.DISTRICT,
+          parentId: divisionOrganizationId,
+          canonical: true,
+          organizationStatus: OrganizationStatus.ACTIVE,
+          verificationStatus: VerificationStatus.VERIFIED,
+        });
+      }
 
       for (const upazila of district.upazilas) {
-        const existing = await prisma.organization.findFirst({
-          where: {
-            upazilaId: upazila.id,
-            level: OrganizationLevel.UPAZILA,
-            canonical: true,
-            isDeleted: false,
-          },
-          select: { id: true },
+        if (existingUpazilaIds.has(upazila.id)) continue;
+        upazilaRows.push({
+          id: deterministicUuid(`UPAZILA:${upazila.id}`),
+          name: `${upazila.name} Upazila Organization`,
+          phone,
+          address: `${upazila.name}, ${district.name}, ${division.name}, Bangladesh`,
+          divisionId: division.id,
+          districtId: district.id,
+          upazilaId: upazila.id,
+          level: OrganizationLevel.UPAZILA,
+          parentId: districtOrganizationId,
+          canonical: true,
+          organizationStatus: OrganizationStatus.ACTIVE,
+          verificationStatus: VerificationStatus.VERIFIED,
         });
-        if (existing) continue;
-
-        await prisma.organization.create({
-          data: {
-            id: deterministicUuid(`UPAZILA:${upazila.id}`),
-            name: `${upazila.name} Upazila Organization`,
-            phone,
-            address: `${upazila.name}, ${district.name}, ${division.name}, Bangladesh`,
-            divisionId: division.id,
-            districtId: district.id,
-            upazilaId: upazila.id,
-            level: OrganizationLevel.UPAZILA,
-            parentId: districtOrganization.id,
-            canonical: true,
-            type: GEO_ORGANIZATION_TYPES.upazila,
-            organizationStatus: OrganizationStatus.ACTIVE,
-            verificationStatus: VerificationStatus.VERIFIED,
-          },
-        });
-        created += 1;
       }
     }
   }
 
+  await prisma.$transaction(async (tx) => {
+    if (centralRows.length) await tx.organization.createMany({ data: centralRows });
+    if (divisionRows.length) await tx.organization.createMany({ data: divisionRows });
+    if (districtRows.length) await tx.organization.createMany({ data: districtRows });
+    if (upazilaRows.length) await tx.organization.createMany({ data: upazilaRows });
+  }, { maxWait: 10_000, timeout: 120_000 });
+
+  const created =
+    centralRows.length + divisionRows.length + districtRows.length + upazilaRows.length;
   console.log(`✅ Canonical organization hierarchy ready (${created} missing nodes created).`);
 };

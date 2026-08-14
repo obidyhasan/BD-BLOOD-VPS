@@ -2140,12 +2140,17 @@ const upazilas = [
   },
   {
     id: "000e3a8b-c56e-5ee1-852e-a0c32ea4e5b5",
-    name: "Natore Sadar",
+    name: "Singra",
     districtId: "fc1a9371-19f1-5360-a06b-b86d1b7fbf0d",
   },
   {
     id: "0eb72cf0-1438-5d0f-b1c5-5165583b11a4",
-    name: "Baraigram",
+    name: "Gurudaspur",
+    districtId: "fc1a9371-19f1-5360-a06b-b86d1b7fbf0d",
+  },
+  {
+    id: "fdd1b3ef-6b35-4041-9032-60e9497b311a",
+    name: "Naldanga",
     districtId: "fc1a9371-19f1-5360-a06b-b86d1b7fbf0d",
   },
   {
@@ -2815,29 +2820,56 @@ const upazilas = [
   },
 ];
 
+const assertUniqueSeedRecords = <T>(
+  records: T[],
+  label: string,
+  keys: Array<(record: T) => string>,
+) => {
+  for (const keyOf of keys) {
+    const seen = new Set<string>();
+    for (const record of records) {
+      const key = keyOf(record).trim().toLocaleLowerCase("en-US");
+      if (seen.has(key)) {
+        throw new Error(`Duplicate ${label} seed identity: ${key}`);
+      }
+      seen.add(key);
+    }
+  }
+};
+
+const assertGeoSeedSourceIntegrity = () => {
+  assertUniqueSeedRecords(divisions, "Division", [
+    (item) => item.id,
+    (item) => item.name,
+  ]);
+  assertUniqueSeedRecords(districts, "District", [
+    (item) => item.id,
+    (item) => `${item.divisionId}:${item.name}`,
+  ]);
+  assertUniqueSeedRecords(upazilas, "Upazila", [
+    (item) => item.id,
+    (item) => `${item.districtId}:${item.name}`,
+  ]);
+};
+
 async function main(silent = false): Promise<void> {
   const log = (msg: string) => {
     if (!silent) console.log(msg);
   };
 
+  // Validate the complete source before the first database write.
+  assertGeoSeedSourceIntegrity();
+
+  await prisma.$transaction(async (tx) => {
   // ── Already-seeded check ──────────────────────────────────────────────────
   // Verify every hierarchy level. Checking only the eight divisions can hide a
   // failed/partial first run that never inserted all districts or Upazilas.
   const [existingDivisionCount, existingDistrictCount, existingUpazilaCount] =
     await Promise.all([
-      prisma.division.count({ where: { isDeleted: false } }),
-      prisma.district.count({ where: { isDeleted: false } }),
-      prisma.upazila.count({ where: { isDeleted: false } }),
+      tx.division.count({ where: { isDeleted: false } }),
+      tx.district.count({ where: { isDeleted: false } }),
+      tx.upazila.count({ where: { isDeleted: false } }),
     ]);
-
-  if (
-    existingDivisionCount >= divisions.length &&
-    existingDistrictCount >= districts.length &&
-    existingUpazilaCount >= upazilas.length
-  ) {
-    log("⏭️  Geo data already seeded — skipping.");
-    return;
-  }
 
   // ── Partial-seed warning ──────────────────────────────────────────────────
   // Any existing hierarchy data means upserts must fill only missing records.
@@ -2855,66 +2887,107 @@ async function main(silent = false): Promise<void> {
 
   // ── Divisions ─────────────────────────────────────────────────────────────
   log("📍 Seeding divisions...");
-  let divInserted = 0;
-  let divSkipped = 0;
-
-  for (const division of divisions) {
-    const existing = await prisma.division.findUnique({
-      where: { id: division.id },
-    });
-
-    if (existing) {
-      divSkipped++;
-    } else {
-      await prisma.division.create({ data: division });
-      divInserted++;
-    }
+  const existingDivisions = await tx.division.findMany({
+    where: { id: { in: divisions.map((item) => item.id) } },
+    select: { id: true, name: true, isDeleted: true },
+  });
+  const divisionById = new Map(existingDivisions.map((item) => [item.id, item]));
+  const missingDivisions = divisions.filter((item) => !divisionById.has(item.id));
+  const changedDivisions = divisions.filter((item) => {
+    const current = divisionById.get(item.id);
+    return current && (current.name !== item.name || current.isDeleted);
+  });
+  if (missingDivisions.length) {
+    await tx.division.createMany({ data: missingDivisions });
   }
+  await Promise.all(
+    changedDivisions.map((item) =>
+      tx.division.update({
+        where: { id: item.id },
+        data: { name: item.name, isDeleted: false, deletedAt: null },
+      }),
+    ),
+  );
+  const divInserted = missingDivisions.length;
+  const divSkipped = divisions.length - divInserted;
 
   log(`   ✓ ${divInserted} inserted, ${divSkipped} already existed`);
 
   // ── Districts ─────────────────────────────────────────────────────────────
   log("\n🗺  Seeding districts...");
-  let distInserted = 0;
-  let distSkipped = 0;
-
-  for (const district of districts) {
-    const existing = await prisma.district.findUnique({
-      where: { id: district.id },
-    });
-
-    if (existing) {
-      distSkipped++;
-    } else {
-      await prisma.district.create({ data: district });
-      distInserted++;
-    }
+  const existingDistricts = await tx.district.findMany({
+    where: { id: { in: districts.map((item) => item.id) } },
+    select: { id: true, name: true, divisionId: true, isDeleted: true },
+  });
+  const districtById = new Map(existingDistricts.map((item) => [item.id, item]));
+  const missingDistricts = districts.filter((item) => !districtById.has(item.id));
+  const changedDistricts = districts.filter((item) => {
+    const current = districtById.get(item.id);
+    return current &&
+      (current.name !== item.name ||
+        current.divisionId !== item.divisionId ||
+        current.isDeleted);
+  });
+  if (missingDistricts.length) {
+    await tx.district.createMany({ data: missingDistricts });
   }
+  await Promise.all(
+    changedDistricts.map((item) =>
+      tx.district.update({
+        where: { id: item.id },
+        data: {
+          name: item.name,
+          divisionId: item.divisionId,
+          isDeleted: false,
+          deletedAt: null,
+        },
+      }),
+    ),
+  );
+  const distInserted = missingDistricts.length;
+  const distSkipped = districts.length - distInserted;
 
   log(`   ✓ ${distInserted} inserted, ${distSkipped} already existed`);
 
   // ── Upazilas ──────────────────────────────────────────────────────────────
   log("\n🏘  Seeding upazilas...");
-  let upazInserted = 0;
-  let upazSkipped = 0;
-
-  for (const upazila of upazilas) {
-    const existing = await prisma.upazila.findUnique({
-      where: { id: upazila.id },
-    });
-
-    if (existing) {
-      upazSkipped++;
-    } else {
-      await prisma.upazila.create({ data: upazila });
-      upazInserted++;
-    }
+  const existingUpazilas = await tx.upazila.findMany({
+    where: { id: { in: upazilas.map((item) => item.id) } },
+    select: { id: true, name: true, districtId: true, isDeleted: true },
+  });
+  const upazilaById = new Map(existingUpazilas.map((item) => [item.id, item]));
+  const missingUpazilas = upazilas.filter((item) => !upazilaById.has(item.id));
+  const changedUpazilas = upazilas.filter((item) => {
+    const current = upazilaById.get(item.id);
+    return current &&
+      (current.name !== item.name ||
+        current.districtId !== item.districtId ||
+        current.isDeleted);
+  });
+  if (missingUpazilas.length) {
+    await tx.upazila.createMany({ data: missingUpazilas });
   }
+  await Promise.all(
+    changedUpazilas.map((item) =>
+      tx.upazila.update({
+        where: { id: item.id },
+        data: {
+          name: item.name,
+          districtId: item.districtId,
+          isDeleted: false,
+          deletedAt: null,
+        },
+      }),
+    ),
+  );
+  const upazInserted = missingUpazilas.length;
+  const upazSkipped = upazilas.length - upazInserted;
 
   log(`   ✓ ${upazInserted} inserted, ${upazSkipped} already existed`);
 
   // ── Summary ───────────────────────────────────────────────────────────────
   log("\n✅ Geo seeding complete!");
+  }, { maxWait: 10_000, timeout: 120_000 });
 }
 
 // -- Named export (supports: import { seedGeoData } from '../prisma/seed') ----

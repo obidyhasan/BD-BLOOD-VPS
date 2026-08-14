@@ -50,7 +50,6 @@ export interface User {
 
 export interface AuthState {
   user: User | null;
-  accessToken: string | null;
 }
 
 export interface LoginRequest {
@@ -76,15 +75,11 @@ export interface AuthResponse {
   message: string;
   data: {
     user: User;
-    accessToken: string;
-    refreshToken: string;
   };
 }
 
 export interface RefreshTokenResponse {
   success: boolean;
   message: string;
-  data: {
-    accessToken: string;
-  };
+  data: Record<string, never>;
 }

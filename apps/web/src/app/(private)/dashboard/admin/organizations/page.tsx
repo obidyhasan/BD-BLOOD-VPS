@@ -171,7 +171,7 @@ export default function AdminOrganizationsPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const { data, isLoading } = useGetAllOrganizationsQuery({ limit: 1000 });
+  const { data, isLoading } = useGetAllOrganizationsQuery({ limit: 1000, adminView: true });
   const { data: divisionsData } = useGetDivisionsQuery();
   const { data: districtsData } = useGetDistrictsQuery({ limit: 100 });
   const { data: upazilasData } = useGetUpazilasQuery({ limit: 600 });

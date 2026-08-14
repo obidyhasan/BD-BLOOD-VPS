@@ -38,7 +38,7 @@ export default function GoogleCallbackClient() {
         ).unwrap();
 
         const user = meResult.data;
-        dispatch(setCredentials({ user, token: "" }));
+        dispatch(setCredentials({ user }));
 
         toast.success("Signed in with Google");
 

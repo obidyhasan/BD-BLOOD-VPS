@@ -6,24 +6,11 @@ import {
   type FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
 import { BACKEND_API_URL, BACKEND_API_URLS } from "@/lib/backend";
-import { RootState } from "../store";
 
 const createBaseQuery = (baseUrl: string) =>
   fetchBaseQuery({
     baseUrl,
     credentials: "include",
-    prepareHeaders: (headers, { getState }) => {
-      const state = getState() as RootState;
-      const token =
-        state.auth?.accessToken ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem("accessToken")
-          : null);
-      if (token) {
-        headers.set("authorization", `Bearer ${token}`);
-      }
-      return headers;
-    },
   });
 
 const backendBaseUrls = BACKEND_API_URLS.length

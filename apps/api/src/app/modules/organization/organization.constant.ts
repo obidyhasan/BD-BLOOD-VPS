@@ -13,6 +13,7 @@ export const organizationFilterableFields: string[] = [
   "upazilaId",
   "verificationStatus",
   "organizationStatus",
+  "level",
   "type",
 ];
 

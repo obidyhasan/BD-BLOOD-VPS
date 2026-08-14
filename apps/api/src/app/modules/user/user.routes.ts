@@ -31,7 +31,7 @@ router.patch(
 
 router.get(
   "/:email",
-  auth(Role.ADMIN, Role.DONOR),
+  auth(Role.ADMIN),
   UserController.getSingleUser,
 );
 

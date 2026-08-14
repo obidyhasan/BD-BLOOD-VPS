@@ -134,17 +134,20 @@ export const organizationsApi = baseApi.injectEndpoints({
         districtId?: string;
         upazilaId?: string;
         type?: string;
+        level?: OrganizationLevel;
+        adminView?: boolean;
       } | void
     >({
       query: (params) => {
         const qp = new URLSearchParams();
+        const adminView = params?.adminView === true;
         if (params) {
           Object.entries(params).forEach(([k, v]) => {
-            if (v !== undefined && v !== null) qp.append(k, String(v));
+            if (k !== "adminView" && v !== undefined && v !== null) qp.append(k, String(v));
           });
         }
         const qs = qp.toString();
-        return { url: `/organizations${qs ? `?${qs}` : ""}` };
+        return { url: `/organizations${adminView ? "/admin" : ""}${qs ? `?${qs}` : ""}` };
       },
       providesTags: ["Organizations"],
     }),

@@ -56,6 +56,20 @@ const getAllOrganizations = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getAllOrganizationsAdmin = catchAsync(async (req: Request, res: Response) => {
+  const filters = pick(req.query, organizationFilterableFields);
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const result = await OrganizationService.getAllOrganizations(filters, options, false);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Organizations retrieved successfully!",
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const getOrganizationBySlug = catchAsync(
   async (req: Request, res: Response) => {
     const result = await OrganizationService.getOrganizationBySlug(
@@ -170,6 +184,7 @@ export const OrganizationController = {
   createOrganization,
   registerOrganization,
   getAllOrganizations,
+  getAllOrganizationsAdmin,
   getOrganizationBySlug,
   getSingleOrganization,
   updateOrganization,

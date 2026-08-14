@@ -27,7 +27,6 @@ import { setCredentials } from "@/redux/features/auth/authSlice";
 import { organizationsApi } from "@/redux/features/organizations/organizationsApi";
 import { AlertCircle, CheckCircle2, Loader2, MailWarning } from "lucide-react";
 import { extractErrorCode, extractErrorMessage } from "@/lib/apiError";
-import { syncAuthSession } from "@/lib/syncAuthSession";
 import {
   Alert,
   AlertContent,
@@ -103,14 +102,8 @@ const LoginForm = () => {
       dispatch(
         setCredentials({
           user: result.data.user,
-          token: result.data.accessToken,
         }),
       );
-
-      await syncAuthSession({
-        accessToken: result.data.accessToken,
-        refreshToken: result.data.refreshToken,
-      });
 
       toast.success("Logged in successfully");
 

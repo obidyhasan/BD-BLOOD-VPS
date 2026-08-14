@@ -3,6 +3,7 @@ import { seedGeoData } from "./geoSeed";
 import { seedBloodGroups } from "./bloodGroupSeed";
 import { seedAchievements } from "./achievementSeed";
 import { seedCanonicalOrganizations } from "./organizationSeed";
+import { seedSuperAdmin } from "./adminSeed";
 import { prisma } from "../shared/prisma";
 
 async function main() {
@@ -13,6 +14,7 @@ async function main() {
     await seedBloodGroups();
     await seedAchievements();
     await seedCanonicalOrganizations();
+    await seedSuperAdmin();
 
     console.log("✅ All seeding completed successfully!");
   } catch (error) {

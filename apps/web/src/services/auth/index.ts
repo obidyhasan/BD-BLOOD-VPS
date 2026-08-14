@@ -2,7 +2,7 @@
 
 import { serverFetch } from "@/helper/server-fetch";
 import { BACKEND_API_URL } from "@/lib/backend";
-import { deleteCookie, setCookie } from "@/services/auth/tokenHandlers";
+import { deleteCookie } from "@/services/auth/tokenHandlers";
 
 export const loginUser = async (data: {
   email: string;
@@ -15,22 +15,6 @@ export const loginUser = async (data: {
       body: JSON.stringify(data),
     });
     const result = await res.json();
-    if (result.success && result.data) {
-      await setCookie("accessToken", result.data.accessToken, {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        maxAge: 60 * 60,
-        path: "/",
-        sameSite: "lax",
-      });
-      await setCookie("refreshToken", result.data.refreshToken, {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        maxAge: 60 * 60 * 24 * 30,
-        path: "/",
-        sameSite: "lax",
-      });
-    }
     return result;
   } catch {
     return { success: false, message: "Login failed" };

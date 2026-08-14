@@ -80,7 +80,6 @@ import {
   mapOrganizationPositionToUI,
   type SystemPositionUI,
 } from "@/lib/position";
-import { syncAuthSession } from "@/lib/syncAuthSession";
 
 // Sentinel combobox value representing "National Committee — no specific
 // Organization" (backend: organizationId omitted/null). Kept out of the
@@ -99,7 +98,7 @@ const editSchema = z.object({
 });
 
 export default function OrganizationMembersPage() {
-  const { data: orgsData } = useGetAllOrganizationsQuery({ limit: 200 });
+  const { data: orgsData } = useGetAllOrganizationsQuery({ limit: 200, adminView: true });
   const { data: donorsData } = useGetAllDonorsQuery({ limit: 200 });
   const { data: positionsData } = useGetAllPositionsQuery();
   const {
@@ -229,10 +228,6 @@ export default function OrganizationMembersPage() {
             ? undefined
             : data.organizationId,
       }).unwrap();
-      const token = localStorage.getItem("accessToken");
-      if (token) {
-        await syncAuthSession({ accessToken: token }).catch(() => undefined);
-      }
       toast.success("Donor promoted to organization member!");
       setPromoteOpen(false);
       form.reset();

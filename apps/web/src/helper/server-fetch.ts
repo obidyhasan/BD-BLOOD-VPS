@@ -5,6 +5,7 @@ import {
 } from "@/services/auth/tokenHandlers";
 import { CACHE_TAGS } from "@/lib/cache";
 import { BACKEND_API_URL } from "@/lib/backend";
+import { readSetCookieValue } from "@/lib/setCookieHeader";
 
 const isAuthEndpoint = (endpoint: string) =>
   endpoint.startsWith("/auth/login") ||
@@ -181,9 +182,8 @@ const refreshAccessToken = async (): Promise<string | null> => {
         return null;
       }
 
-      const refreshJson = await refreshRes.json();
-      const nextAccessToken = refreshJson?.data?.accessToken ?? null;
-      const nextRefreshToken = refreshJson?.data?.refreshToken ?? null;
+      const nextAccessToken = readSetCookieValue(refreshRes.headers, "accessToken");
+      const nextRefreshToken = readSetCookieValue(refreshRes.headers, "refreshToken");
       if (!nextAccessToken) return null;
 
       try {

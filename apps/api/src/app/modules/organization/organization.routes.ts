@@ -27,6 +27,11 @@ router.post(
 );
 
 router.get("/", OrganizationController.getAllOrganizations);
+router.get(
+  "/admin",
+  auth(Role.ADMIN),
+  OrganizationController.getAllOrganizationsAdmin,
+);
 router.get("/tree", OrganizationController.getOrganizationTree);
 router.get(
   "/by-upazila/:upazilaId",

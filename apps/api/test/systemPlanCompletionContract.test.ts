@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { loadAllMigrationSql } from "./helpers/migrationSql";
 
 const read = (path: string) => readFile(path, "utf8");
 
@@ -67,9 +68,7 @@ test("donation commands expose verify reject and Admin-only reversal", async () 
 
 test("public request submission is database-idempotent and sends the header", async () => {
   const schema = await read("prisma/schema/schema.prisma");
-  const migration = await read(
-    "prisma/migrations/20260805023000_public_request_idempotency/migration.sql",
-  );
+  const migration = await loadAllMigrationSql();
   const service = await read("src/app/modules/bloodRequest/bloodRequest.service.ts");
   const controller = await read("src/app/modules/bloodRequest/bloodRequest.controller.ts");
   const client = await read("../web/src/redux/features/bloodRequests/bloodRequestsApi.ts");
@@ -101,6 +100,29 @@ test("governance category drives independent caps and Upazila advisor policy", a
   assert.match(adminPage, /allowedPromotePositions/);
   assert.match(adminPage, /position\.level !== "Support"/);
   assert.match(adminPage, /category: position\?\.level === "Management" \? "ADVISOR" : "COMMITTEE"/);
+});
+
+test("finalization security and integrity controls remain connected", async () => {
+  const authMiddleware = await read("src/app/middlewares/auth.ts");
+  const authController = await read("src/app/modules/auth/auth.controller.ts");
+  const socket = await read("src/app/shared/socket.ts");
+  const baseApi = await read("../web/src/redux/api/baseApi.ts");
+  const adminSeed = await read("src/app/seed/adminSeed.ts");
+  const organizationRoutes = await read("src/app/modules/organization/organization.routes.ts");
+  const policyRoutes = await read("src/app/modules/policy/policy.routes.ts");
+  const migrations = await loadAllMigrationSql();
+
+  assert.ok(authMiddleware.indexOf("isUserExist.role") > authMiddleware.indexOf("donor.findUnique"));
+  assert.doesNotMatch(authController.slice(0, authController.indexOf("const refreshToken")), /data:\s*\{[^}]*accessToken/);
+  assert.match(socket, /socket\.handshake\.headers\.cookie/);
+  assert.match(socket, /cookieToken/);
+  assert.doesNotMatch(baseApi, /localStorage|Authorization|Bearer/);
+  assert.match(adminSeed, /National committee seat/);
+  assert.match(organizationRoutes, /"\/admin"[\s\S]*?auth\(Role\.ADMIN\)/);
+  assert.match(policyRoutes, /validateRequest\(createPolicyZodSchema\)/);
+  assert.match(migrations, /donors_single_active_admin_key/);
+  assert.match(migrations, /organizations_upazilaId_districtId_fkey/);
+  assert.match(migrations, /BloodRequests_requiredUnits_check/);
 });
 
 test("durable jobs run in a separately deployable worker without legacy donor dispatch", async () => {

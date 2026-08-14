@@ -46,7 +46,7 @@ export default function AdminAnalyticsPage() {
   const [selectedOrg, setSelectedOrg] = useState("all");
 
   const { data: statsData, isLoading: statsLoading } = useGetPlatformStatsQuery();
-  const { data: orgsData } = useGetAllOrganizationsQuery();
+  const { data: orgsData } = useGetAllOrganizationsQuery({ adminView: true });
   const { data: activityData } = useGetActivityFeedQuery({ limit: 30 });
 
   const stats = statsData?.data;
