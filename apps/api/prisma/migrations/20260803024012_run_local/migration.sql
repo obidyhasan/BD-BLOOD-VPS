@@ -1,2 +1,0 @@
--- RenameIndex
-ALTER INDEX "donors_districtId_upazilaId_bloodGroupId_accountStatus_availabi" RENAME TO "donors_districtId_upazilaId_bloodGroupId_accountStatus_avai_idx";

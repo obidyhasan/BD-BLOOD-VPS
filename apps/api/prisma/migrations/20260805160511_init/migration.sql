@@ -8,7 +8,10 @@ CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'VERIFIED', 'REJECTED');
 
 -- CreateEnum
-CREATE TYPE "BloodRequestStatus" AS ENUM ('PENDING', 'PROCESSING', 'FULFILLED', 'CANCELLED', 'REJECTED');
+CREATE TYPE "BloodRequestStatus" AS ENUM ('PENDING', 'SUBMITTED', 'PROCESSING', 'DONOR_FOUND', 'FULFILLED', 'COMPLETED', 'CANCELLED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "RequestAssignmentStatus" AS ENUM ('PENDING', 'NOTIFIED', 'ACCEPTED', 'REJECTED', 'DECLINED', 'EXPIRED', 'CANCELLED', 'DONATION_PENDING', 'DONATED');
 
 -- CreateEnum
 CREATE TYPE "PostType" AS ENUM ('URGENT', 'EMERGENCY', 'EVENT', 'ANNOUNCEMENT', 'GENERAL', 'RECAP', 'DONATION', 'HELP_REQUEST', 'SOCIAL_ACTIVITY');
@@ -73,6 +76,27 @@ CREATE TYPE "ContactMessageStatus" AS ENUM ('NEW', 'READ', 'ARCHIVED');
 -- CreateEnum
 CREATE TYPE "AppointmentStatus" AS ENUM ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW');
 
+-- CreateEnum
+CREATE TYPE "AchievementThresholdType" AS ENUM ('VERIFIED_DONATIONS', 'TOTAL_DONATIONS');
+
+-- CreateEnum
+CREATE TYPE "OrganizationLevel" AS ENUM ('CENTRAL', 'DIVISION', 'DISTRICT', 'UPAZILA');
+
+-- CreateEnum
+CREATE TYPE "AffiliationSource" AS ENUM ('PROFILE', 'ADMIN', 'MIGRATION');
+
+-- CreateEnum
+CREATE TYPE "GovernanceCategory" AS ENUM ('COMMITTEE', 'ADVISOR');
+
+-- CreateEnum
+CREATE TYPE "DonorProfileStatus" AS ENUM ('INCOMPLETE', 'COMPLETE');
+
+-- CreateEnum
+CREATE TYPE "MessageChannel" AS ENUM ('SMS', 'IN_APP', 'EMAIL');
+
+-- CreateEnum
+CREATE TYPE "MessageOutboxStatus" AS ENUM ('PENDING', 'PROCESSING', 'SENT', 'FAILED', 'DEAD');
+
 -- CreateTable
 CREATE TABLE "divisions" (
     "id" TEXT NOT NULL,
@@ -136,12 +160,15 @@ CREATE TABLE "donors" (
     "districtId" TEXT,
     "upazilaId" TEXT,
     "lastDonationDate" TIMESTAMP(3),
+    "nextEligibleDonationDate" TIMESTAMP(3),
     "availabilityStatus" "AvailabilityStatus" NOT NULL DEFAULT 'AVAILABLE',
     "profilePhoto" TEXT,
     "bio" TEXT,
     "referenceId" TEXT,
     "slug" TEXT,
     "accountStatus" "AccountStatus" NOT NULL DEFAULT 'ACTIVE',
+    "profileStatus" "DonorProfileStatus" NOT NULL DEFAULT 'INCOMPLETE',
+    "profileCompletedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -166,6 +193,7 @@ CREATE TABLE "bloodDonations" (
     "districtId" TEXT NOT NULL,
     "upazilaId" TEXT NOT NULL,
     "organizationId" TEXT,
+    "requestAssignmentId" TEXT,
     "donationDate" TIMESTAMP(3) NOT NULL,
     "verificationStatus" "VerificationStatus" NOT NULL,
     "verifiedBy" TEXT,
@@ -189,6 +217,9 @@ CREATE TABLE "organizations" (
     "divisionId" TEXT NOT NULL,
     "districtId" TEXT NOT NULL,
     "upazilaId" TEXT NOT NULL,
+    "level" "OrganizationLevel" NOT NULL DEFAULT 'UPAZILA',
+    "parentId" TEXT,
+    "canonical" BOOLEAN NOT NULL DEFAULT false,
     "description" TEXT,
     "logo" TEXT,
     "type" TEXT,
@@ -223,7 +254,12 @@ CREATE TABLE "OrganizationMembers" (
     "organizationId" TEXT,
     "donorId" TEXT NOT NULL,
     "positionId" TEXT NOT NULL,
+    "category" "GovernanceCategory" NOT NULL DEFAULT 'COMMITTEE',
+    "seatKey" TEXT,
+    "appointedById" TEXT,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "activatedAt" TIMESTAMP(3),
+    "endedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "status" "OrganizationMemberStatus" NOT NULL DEFAULT 'PENDING',
     "deletedAt" TIMESTAMP(3),
@@ -250,6 +286,7 @@ CREATE TABLE "organizationBloodInventories" (
 -- CreateTable
 CREATE TABLE "BloodRequests" (
     "id" TEXT NOT NULL,
+    "referenceCode" TEXT NOT NULL,
     "requesterName" TEXT NOT NULL,
     "requesterPhone" TEXT NOT NULL,
     "bloodGroupId" TEXT NOT NULL,
@@ -257,16 +294,44 @@ CREATE TABLE "BloodRequests" (
     "divisionId" TEXT NOT NULL,
     "districtId" TEXT NOT NULL,
     "upazilaId" TEXT NOT NULL,
+    "organizationId" TEXT,
+    "handledByOrganizationId" TEXT,
+    "acceptedById" TEXT,
+    "acceptedAt" TIMESTAMP(3),
+    "donorFoundAt" TIMESTAMP(3),
+    "fulfilledAt" TIMESTAMP(3),
+    "handoverCompletedAt" TIMESTAMP(3),
+    "completedById" TEXT,
+    "rejectedAt" TIMESTAMP(3),
+    "rejectedById" TEXT,
+    "cancellationReason" TEXT,
+    "rejectionReason" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "requiredUnits" INTEGER NOT NULL,
     "requestType" "BloodRequestType" NOT NULL DEFAULT 'GENERAL',
     "message" TEXT,
-    "status" "BloodRequestStatus" NOT NULL,
+    "status" "BloodRequestStatus" NOT NULL DEFAULT 'SUBMITTED',
+    "confirmedAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "cancelledById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "BloodRequests_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public_request_idempotency" (
+    "id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "payloadHash" TEXT NOT NULL,
+    "requestId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "public_request_idempotency_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -298,6 +363,45 @@ CREATE TABLE "bloodRequestDonorAlerts" (
 );
 
 -- CreateTable
+CREATE TABLE "requestAssignments" (
+    "id" TEXT NOT NULL,
+    "requestId" TEXT NOT NULL,
+    "donorId" TEXT NOT NULL,
+    "status" "RequestAssignmentStatus" NOT NULL DEFAULT 'PENDING',
+    "assignedById" TEXT NOT NULL,
+    "bagUnits" INTEGER NOT NULL DEFAULT 1,
+    "assignedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notifiedAt" TIMESTAMP(3),
+    "acceptedAt" TIMESTAMP(3),
+    "declinedAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "donationSubmittedAt" TIMESTAMP(3),
+    "donatedAt" TIMESTAMP(3),
+    "rejectedAt" TIMESTAMP(3),
+    "rejectionReason" TEXT,
+    "declineReason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "requestAssignments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bloodRequestStatusHistory" (
+    "id" TEXT NOT NULL,
+    "requestId" TEXT NOT NULL,
+    "previousStatus" "BloodRequestStatus",
+    "newStatus" "BloodRequestStatus" NOT NULL,
+    "changedById" TEXT,
+    "reason" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "bloodRequestStatusHistory_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "donationAppointments" (
     "id" TEXT NOT NULL,
     "donorId" TEXT NOT NULL,
@@ -320,6 +424,7 @@ CREATE TABLE "posts" (
     "id" TEXT NOT NULL,
     "donorId" TEXT NOT NULL,
     "organizationId" TEXT,
+    "donationId" TEXT,
     "postType" "PostType" NOT NULL,
     "visibility" "PostVisibility" NOT NULL DEFAULT 'PUBLIC',
     "isWork" BOOLEAN NOT NULL DEFAULT false,
@@ -341,6 +446,7 @@ CREATE TABLE "postComments" (
     "id" TEXT NOT NULL,
     "postId" TEXT NOT NULL,
     "donorId" TEXT NOT NULL,
+    "parentId" TEXT,
     "content" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -535,13 +641,32 @@ CREATE TABLE "galleries" (
     "slug" TEXT NOT NULL,
     "coverImage" TEXT,
     "images" TEXT[],
-    "organizationId" TEXT NOT NULL,
+    "isPublished" BOOLEAN NOT NULL DEFAULT true,
+    "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "organizationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "galleries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "faqs" (
+    "id" TEXT NOT NULL,
+    "question" TEXT NOT NULL,
+    "answer" TEXT NOT NULL,
+    "category" TEXT,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "faqs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -570,6 +695,70 @@ CREATE TABLE "contact_messages" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "contact_messages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "achievements" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "icon" TEXT NOT NULL,
+    "thresholdType" "AchievementThresholdType" NOT NULL,
+    "thresholdValue" INTEGER NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "achievements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "donor_achievements" (
+    "id" TEXT NOT NULL,
+    "donorId" TEXT NOT NULL,
+    "achievementId" TEXT NOT NULL,
+    "unlockedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "donor_achievements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "donor_organization_affiliations" (
+    "id" TEXT NOT NULL,
+    "donorId" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "upazilaId" TEXT NOT NULL,
+    "source" "AffiliationSource" NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "assignedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "donor_organization_affiliations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "message_outbox" (
+    "id" TEXT NOT NULL,
+    "channel" "MessageChannel" NOT NULL,
+    "templateKey" TEXT NOT NULL,
+    "recipient" TEXT NOT NULL,
+    "payload" JSONB NOT NULL,
+    "aggregateType" TEXT NOT NULL,
+    "aggregateId" TEXT NOT NULL,
+    "eventKey" TEXT NOT NULL,
+    "status" "MessageOutboxStatus" NOT NULL DEFAULT 'PENDING',
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "nextAttemptAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "providerMessageId" TEXT,
+    "lastError" TEXT,
+    "sentAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "message_outbox_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -606,6 +795,15 @@ CREATE INDEX "donors_availabilityStatus_idx" ON "donors"("availabilityStatus");
 CREATE INDEX "donors_accountStatus_idx" ON "donors"("accountStatus");
 
 -- CreateIndex
+CREATE INDEX "donors_nextEligibleDonationDate_idx" ON "donors"("nextEligibleDonationDate");
+
+-- CreateIndex
+CREATE INDEX "donors_districtId_upazilaId_bloodGroupId_accountStatus_avai_idx" ON "donors"("districtId", "upazilaId", "bloodGroupId", "accountStatus", "availabilityStatus");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "bloodDonations_requestAssignmentId_key" ON "bloodDonations"("requestAssignmentId");
+
+-- CreateIndex
 CREATE INDEX "bloodDonations_donorId_idx" ON "bloodDonations"("donorId");
 
 -- CreateIndex
@@ -618,10 +816,28 @@ CREATE INDEX "bloodDonations_divisionId_idx" ON "bloodDonations"("divisionId");
 CREATE INDEX "bloodDonations_districtId_idx" ON "bloodDonations"("districtId");
 
 -- CreateIndex
+CREATE INDEX "bloodDonations_organizationId_idx" ON "bloodDonations"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "bloodDonations_requestAssignmentId_idx" ON "bloodDonations"("requestAssignmentId");
+
+-- CreateIndex
+CREATE INDEX "bloodDonations_createdAt_idx" ON "bloodDonations"("createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "organizations_email_key" ON "organizations"("email");
 
 -- CreateIndex
 CREATE INDEX "organizations_districtId_idx" ON "organizations"("districtId");
+
+-- CreateIndex
+CREATE INDEX "organizations_level_idx" ON "organizations"("level");
+
+-- CreateIndex
+CREATE INDEX "organizations_parentId_idx" ON "organizations"("parentId");
+
+-- CreateIndex
+CREATE INDEX "organizations_canonical_idx" ON "organizations"("canonical");
 
 -- CreateIndex
 CREATE INDEX "organizations_verificationStatus_idx" ON "organizations"("verificationStatus");
@@ -633,7 +849,16 @@ CREATE INDEX "organizations_organizationStatus_idx" ON "organizations"("organiza
 CREATE UNIQUE INDEX "OrganizationMembers_donorId_key" ON "OrganizationMembers"("donorId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "OrganizationMembers_seatKey_key" ON "OrganizationMembers"("seatKey");
+
+-- CreateIndex
 CREATE INDEX "OrganizationMembers_organizationId_idx" ON "OrganizationMembers"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMembers_category_idx" ON "OrganizationMembers"("category");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMembers_appointedById_idx" ON "OrganizationMembers"("appointedById");
 
 -- CreateIndex
 CREATE INDEX "OrganizationMembers_positionId_idx" ON "OrganizationMembers"("positionId");
@@ -651,16 +876,37 @@ CREATE INDEX "organizationBloodInventories_bloodGroupId_idx" ON "organizationBlo
 CREATE UNIQUE INDEX "organizationBloodInventories_organizationId_bloodGroupId_key" ON "organizationBloodInventories"("organizationId", "bloodGroupId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "BloodRequests_referenceCode_key" ON "BloodRequests"("referenceCode");
+
+-- CreateIndex
 CREATE INDEX "BloodRequests_bloodGroupId_idx" ON "BloodRequests"("bloodGroupId");
 
 -- CreateIndex
 CREATE INDEX "BloodRequests_districtId_idx" ON "BloodRequests"("districtId");
 
 -- CreateIndex
+CREATE INDEX "BloodRequests_organizationId_idx" ON "BloodRequests"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "BloodRequests_handledByOrganizationId_idx" ON "BloodRequests"("handledByOrganizationId");
+
+-- CreateIndex
 CREATE INDEX "BloodRequests_status_idx" ON "BloodRequests"("status");
 
 -- CreateIndex
 CREATE INDEX "BloodRequests_requestType_idx" ON "BloodRequests"("requestType");
+
+-- CreateIndex
+CREATE INDEX "BloodRequests_createdAt_idx" ON "BloodRequests"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "public_request_idempotency_key_key" ON "public_request_idempotency"("key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "public_request_idempotency_requestId_key" ON "public_request_idempotency"("requestId");
+
+-- CreateIndex
+CREATE INDEX "public_request_idempotency_expiresAt_idx" ON "public_request_idempotency"("expiresAt");
 
 -- CreateIndex
 CREATE INDEX "bloodRequestNotifications_requestId_idx" ON "bloodRequestNotifications"("requestId");
@@ -681,6 +927,27 @@ CREATE INDEX "bloodRequestDonorAlerts_donorId_idx" ON "bloodRequestDonorAlerts"(
 CREATE UNIQUE INDEX "bloodRequestDonorAlerts_requestId_donorId_key" ON "bloodRequestDonorAlerts"("requestId", "donorId");
 
 -- CreateIndex
+CREATE INDEX "requestAssignments_requestId_idx" ON "requestAssignments"("requestId");
+
+-- CreateIndex
+CREATE INDEX "requestAssignments_requestId_status_idx" ON "requestAssignments"("requestId", "status");
+
+-- CreateIndex
+CREATE INDEX "requestAssignments_donorId_idx" ON "requestAssignments"("donorId");
+
+-- CreateIndex
+CREATE INDEX "requestAssignments_status_idx" ON "requestAssignments"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "requestAssignments_requestId_donorId_key" ON "requestAssignments"("requestId", "donorId");
+
+-- CreateIndex
+CREATE INDEX "bloodRequestStatusHistory_requestId_idx" ON "bloodRequestStatusHistory"("requestId");
+
+-- CreateIndex
+CREATE INDEX "bloodRequestStatusHistory_changedById_idx" ON "bloodRequestStatusHistory"("changedById");
+
+-- CreateIndex
 CREATE INDEX "donationAppointments_donorId_idx" ON "donationAppointments"("donorId");
 
 -- CreateIndex
@@ -694,6 +961,9 @@ CREATE INDEX "donationAppointments_scheduledAt_idx" ON "donationAppointments"("s
 
 -- CreateIndex
 CREATE INDEX "donationAppointments_status_idx" ON "donationAppointments"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "posts_donationId_key" ON "posts"("donationId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "posts_slug_key" ON "posts"("slug");
@@ -714,10 +984,19 @@ CREATE INDEX "posts_postType_idx" ON "posts"("postType");
 CREATE INDEX "posts_isWork_idx" ON "posts"("isWork");
 
 -- CreateIndex
+CREATE INDEX "posts_organizationId_createdAt_idx" ON "posts"("organizationId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "posts_approvalStatus_createdAt_idx" ON "posts"("approvalStatus", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "postComments_postId_idx" ON "postComments"("postId");
 
 -- CreateIndex
 CREATE INDEX "postComments_donorId_idx" ON "postComments"("donorId");
+
+-- CreateIndex
+CREATE INDEX "postComments_parentId_idx" ON "postComments"("parentId");
 
 -- CreateIndex
 CREATE INDEX "postLikes_postId_idx" ON "postLikes"("postId");
@@ -753,7 +1032,13 @@ CREATE UNIQUE INDEX "eventParticipants_eventId_donorId_key" ON "eventParticipant
 CREATE UNIQUE INDEX "medicalInstitutions_slug_key" ON "medicalInstitutions"("slug");
 
 -- CreateIndex
+CREATE INDEX "medicalInstitutions_divisionId_idx" ON "medicalInstitutions"("divisionId");
+
+-- CreateIndex
 CREATE INDEX "medicalInstitutions_districtId_idx" ON "medicalInstitutions"("districtId");
+
+-- CreateIndex
+CREATE INDEX "medicalInstitutions_upazilaId_idx" ON "medicalInstitutions"("upazilaId");
 
 -- CreateIndex
 CREATE INDEX "doctors_institutionId_idx" ON "doctors"("institutionId");
@@ -780,6 +1065,9 @@ CREATE INDEX "notifications_isRead_idx" ON "notifications"("isRead");
 CREATE INDEX "notifications_type_idx" ON "notifications"("type");
 
 -- CreateIndex
+CREATE INDEX "notifications_donorId_createdAt_idx" ON "notifications"("donorId", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "reports_reportedBy_idx" ON "reports"("reportedBy");
 
 -- CreateIndex
@@ -798,6 +1086,24 @@ CREATE INDEX "blogs_authorId_idx" ON "blogs"("authorId");
 CREATE UNIQUE INDEX "galleries_slug_key" ON "galleries"("slug");
 
 -- CreateIndex
+CREATE INDEX "galleries_organizationId_idx" ON "galleries"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "galleries_organizationId_isPublished_sortOrder_idx" ON "galleries"("organizationId", "isPublished", "sortOrder");
+
+-- CreateIndex
+CREATE INDEX "galleries_isFeatured_isPublished_idx" ON "galleries"("isFeatured", "isPublished");
+
+-- CreateIndex
+CREATE INDEX "faqs_active_idx" ON "faqs"("active");
+
+-- CreateIndex
+CREATE INDEX "faqs_category_idx" ON "faqs"("category");
+
+-- CreateIndex
+CREATE INDEX "faqs_order_idx" ON "faqs"("order");
+
+-- CreateIndex
 CREATE INDEX "policies_category_idx" ON "policies"("category");
 
 -- CreateIndex
@@ -808,6 +1114,39 @@ CREATE INDEX "contact_messages_status_idx" ON "contact_messages"("status");
 
 -- CreateIndex
 CREATE INDEX "contact_messages_createdAt_idx" ON "contact_messages"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "achievements_active_idx" ON "achievements"("active");
+
+-- CreateIndex
+CREATE INDEX "achievements_thresholdType_idx" ON "achievements"("thresholdType");
+
+-- CreateIndex
+CREATE INDEX "donor_achievements_donorId_idx" ON "donor_achievements"("donorId");
+
+-- CreateIndex
+CREATE INDEX "donor_achievements_achievementId_idx" ON "donor_achievements"("achievementId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "donor_achievements_donorId_achievementId_key" ON "donor_achievements"("donorId", "achievementId");
+
+-- CreateIndex
+CREATE INDEX "donor_organization_affiliations_organizationId_active_idx" ON "donor_organization_affiliations"("organizationId", "active");
+
+-- CreateIndex
+CREATE INDEX "donor_organization_affiliations_upazilaId_active_idx" ON "donor_organization_affiliations"("upazilaId", "active");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "donor_organization_affiliations_donorId_key" ON "donor_organization_affiliations"("donorId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "message_outbox_eventKey_key" ON "message_outbox"("eventKey");
+
+-- CreateIndex
+CREATE INDEX "message_outbox_status_nextAttemptAt_idx" ON "message_outbox"("status", "nextAttemptAt");
+
+-- CreateIndex
+CREATE INDEX "message_outbox_aggregateType_aggregateId_idx" ON "message_outbox"("aggregateType", "aggregateId");
 
 -- AddForeignKey
 ALTER TABLE "districts" ADD CONSTRAINT "districts_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -849,10 +1188,19 @@ ALTER TABLE "bloodDonations" ADD CONSTRAINT "bloodDonations_upazilaId_fkey" FORE
 ALTER TABLE "bloodDonations" ADD CONSTRAINT "bloodDonations_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "bloodDonations" ADD CONSTRAINT "bloodDonations_requestAssignmentId_fkey" FOREIGN KEY ("requestAssignmentId") REFERENCES "requestAssignments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "OrganizationMembers" ADD CONSTRAINT "OrganizationMembers_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrganizationMembers" ADD CONSTRAINT "OrganizationMembers_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMembers" ADD CONSTRAINT "OrganizationMembers_appointedById_fkey" FOREIGN KEY ("appointedById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrganizationMembers" ADD CONSTRAINT "OrganizationMembers_positionId_fkey" FOREIGN KEY ("positionId") REFERENCES "organizationPositions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -876,6 +1224,27 @@ ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_districtId_fkey" FOREI
 ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_upazilaId_fkey" FOREIGN KEY ("upazilaId") REFERENCES "upazilas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_handledByOrganizationId_fkey" FOREIGN KEY ("handledByOrganizationId") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_acceptedById_fkey" FOREIGN KEY ("acceptedById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_completedById_fkey" FOREIGN KEY ("completedById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_rejectedById_fkey" FOREIGN KEY ("rejectedById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BloodRequests" ADD CONSTRAINT "BloodRequests_cancelledById_fkey" FOREIGN KEY ("cancelledById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public_request_idempotency" ADD CONSTRAINT "public_request_idempotency_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "BloodRequests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "bloodRequestNotifications" ADD CONSTRAINT "bloodRequestNotifications_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "BloodRequests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -886,6 +1255,21 @@ ALTER TABLE "bloodRequestDonorAlerts" ADD CONSTRAINT "bloodRequestDonorAlerts_re
 
 -- AddForeignKey
 ALTER TABLE "bloodRequestDonorAlerts" ADD CONSTRAINT "bloodRequestDonorAlerts_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "requestAssignments" ADD CONSTRAINT "requestAssignments_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "BloodRequests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "requestAssignments" ADD CONSTRAINT "requestAssignments_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "requestAssignments" ADD CONSTRAINT "requestAssignments_assignedById_fkey" FOREIGN KEY ("assignedById") REFERENCES "donors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bloodRequestStatusHistory" ADD CONSTRAINT "bloodRequestStatusHistory_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "BloodRequests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bloodRequestStatusHistory" ADD CONSTRAINT "bloodRequestStatusHistory_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "donors"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "donationAppointments" ADD CONSTRAINT "donationAppointments_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -903,6 +1287,9 @@ ALTER TABLE "donationAppointments" ADD CONSTRAINT "donationAppointments_bloodGro
 ALTER TABLE "posts" ADD CONSTRAINT "posts_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "posts" ADD CONSTRAINT "posts_donationId_fkey" FOREIGN KEY ("donationId") REFERENCES "bloodDonations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "posts" ADD CONSTRAINT "posts_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -910,6 +1297,9 @@ ALTER TABLE "postComments" ADD CONSTRAINT "postComments_postId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "postComments" ADD CONSTRAINT "postComments_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "postComments" ADD CONSTRAINT "postComments_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "postComments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "postLikes" ADD CONSTRAINT "postLikes_postId_fkey" FOREIGN KEY ("postId") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -955,3 +1345,18 @@ ALTER TABLE "blogs" ADD CONSTRAINT "blogs_authorId_fkey" FOREIGN KEY ("authorId"
 
 -- AddForeignKey
 ALTER TABLE "galleries" ADD CONSTRAINT "galleries_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "donor_achievements" ADD CONSTRAINT "donor_achievements_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "donor_achievements" ADD CONSTRAINT "donor_achievements_achievementId_fkey" FOREIGN KEY ("achievementId") REFERENCES "achievements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "donor_organization_affiliations" ADD CONSTRAINT "donor_organization_affiliations_donorId_fkey" FOREIGN KEY ("donorId") REFERENCES "donors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "donor_organization_affiliations" ADD CONSTRAINT "donor_organization_affiliations_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "donor_organization_affiliations" ADD CONSTRAINT "donor_organization_affiliations_upazilaId_fkey" FOREIGN KEY ("upazilaId") REFERENCES "upazilas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
