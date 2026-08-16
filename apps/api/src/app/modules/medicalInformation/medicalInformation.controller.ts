@@ -4,9 +4,10 @@ import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
 import pick from "../../shared/pick";
 import { MedicalInformationService } from "./medicalInformation.service";
+import { IJWTPayload } from "../../types";
 
-const createMedicalInformation = catchAsync(async (req: Request, res: Response) => {
-  const result = await MedicalInformationService.createMedicalInformation(req.body);
+const createMedicalInformation = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const result = await MedicalInformationService.createMedicalInformation(req.user as IJWTPayload, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -16,13 +17,26 @@ const createMedicalInformation = catchAsync(async (req: Request, res: Response) 
 });
 
 const getAllMedicalInformations = catchAsync(async (req: Request, res: Response) => {
-  const filters = pick(req.query, ["institutionId", "status"]);
+  const filters = pick(req.query, ["searchTerm", "institutionId", "divisionId", "districtId", "upazilaId"]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
   const result = await MedicalInformationService.getAllMedicalInformations(filters, options);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: "Medical informations retrieved successfully!",
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getAllMedicalInformationsAdmin = catchAsync(async (req: Request, res: Response) => {
+  const filters = pick(req.query, ["searchTerm", "institutionId", "status", "divisionId", "districtId", "upazilaId"]);
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const result = await MedicalInformationService.getAllMedicalInformations(filters, options, true);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Medical information retrieved successfully!",
     data: result.data,
     meta: result.meta,
   });
@@ -61,6 +75,7 @@ const deleteMedicalInformation = catchAsync(async (req: Request, res: Response) 
 export const MedicalInformationController = {
   createMedicalInformation,
   getAllMedicalInformations,
+  getAllMedicalInformationsAdmin,
   getSingleMedicalInformation,
   updateMedicalInformation,
   deleteMedicalInformation,

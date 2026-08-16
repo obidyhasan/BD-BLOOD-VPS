@@ -9,7 +9,7 @@ export default async function Page() {
   const [institutionsRes, doctorsRes, infosRes] = await Promise.all([
     getAllInstitutions({ limit: 100 }),
     getAllDoctors({ limit: 100 }),
-    getAllMedicalInfos({ limit: 100 }),
+    getAllMedicalInfos({ limit: 100, status: "PUBLISHED" }),
   ]);
 
   return (

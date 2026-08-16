@@ -5,6 +5,7 @@ export const createBlogZodSchema = z.object({
   title: z.string({ message: "Title is required" }).min(1),
   content: z.string({ message: "Content is required" }).min(1),
   coverImage: z.string().url().optional(),
+  organizationId: z.string().uuid().optional(),
 });
 
 export const updateBlogZodSchema = z.object({

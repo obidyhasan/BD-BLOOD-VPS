@@ -18,6 +18,8 @@ import {
   Calendar,
   Clock,
   Users,
+  Check,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -41,8 +43,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  useGetAllEventsQuery,
+  useGetAdminEventsQuery,
   useDeleteEventMutation,
+  useUpdateEventApprovalMutation,
 } from "@/redux/features/events/eventsApi";
 import { format } from "date-fns";
 
@@ -102,8 +105,10 @@ export default function AdminEventsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  const { data, isLoading } = useGetAllEventsQuery({ limit: 200 });
+  const { data, isLoading } = useGetAdminEventsQuery({ limit: 200 });
   const [deleteEvent] = useDeleteEventMutation();
+  const [updateApproval, { isLoading: isReviewing }] =
+    useUpdateEventApprovalMutation();
 
   const events = data?.data ?? [];
 
@@ -143,6 +148,18 @@ export default function AdminEventsPage() {
       toast.error("Failed to delete event");
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const reviewEvent = async (
+    id: string,
+    approvalStatus: "APPROVED" | "REJECTED",
+  ) => {
+    try {
+      await updateApproval({ id, approvalStatus }).unwrap();
+      toast.success(`Event ${approvalStatus.toLowerCase()}`);
+    } catch {
+      toast.error("Failed to update event approval");
     }
   };
 
@@ -278,6 +295,9 @@ export default function AdminEventsPage() {
                       {eventTypeLabel[event.eventType] || event.eventType}
                     </Badge>
                   </div>
+                  <Badge className="absolute top-4 right-4">
+                    {event.approvalStatus ?? "APPROVED"}
+                  </Badge>
                 </div>
 
                 {/* Content */}
@@ -324,6 +344,25 @@ export default function AdminEventsPage() {
                       )}
                     </div>
                   </div>
+                  {event.approvalStatus === "PENDING" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        disabled={isReviewing}
+                        onClick={() => void reviewEvent(event.id, "APPROVED")}
+                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        <Check className="mr-2 size-4" /> Approve
+                      </Button>
+                      <Button
+                        disabled={isReviewing}
+                        variant="destructive"
+                        onClick={() => void reviewEvent(event.id, "REJECTED")}
+                        className="rounded-xl"
+                      >
+                        <X className="mr-2 size-4" /> Reject
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

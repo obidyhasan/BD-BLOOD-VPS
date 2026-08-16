@@ -6,6 +6,7 @@ import pick from "../../shared/pick";
 import { IJWTPayload } from "../../types";
 import { BlogService } from "./blog.service";
 import { blogFilterableFields } from "./blog.constant";
+import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
 
 const createBlog = catchAsync(
   async (req: Request & { user?: IJWTPayload }, res: Response) => {
@@ -46,6 +47,18 @@ const getAllBlogsAdmin = catchAsync(async (req: Request, res: Response) => {
     data: result.data,
     meta: result.meta,
   });
+});
+
+const getManagedBlogs = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const organizationId = typeof req.query.organizationId === "string" ? req.query.organizationId : "";
+  await assertCanAccessOrganizationDashboard(req.user as IJWTPayload, organizationId);
+  const filters = {
+    ...pick(req.query, blogFilterableFields),
+    organizationId,
+  };
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const result = await BlogService.getAllBlogs(filters, options, false);
+  sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Organization blogs retrieved successfully!", data: result.data, meta: result.meta });
 });
 
 const getBlogBySlug = catchAsync(async (req: Request, res: Response) => {
@@ -94,8 +107,9 @@ const updateBlog = catchAsync(
   },
 );
 
-const updateBlogStatus = catchAsync(async (req: Request, res: Response) => {
+const updateBlogStatus = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
   const result = await BlogService.updateBlogStatus(
+    req.user as IJWTPayload,
     req.params.id,
     req.body.status,
   );
@@ -136,6 +150,7 @@ export const BlogController = {
   createBlog,
   getAllBlogsPublic,
   getAllBlogsAdmin,
+  getManagedBlogs,
   getBlogBySlug,
   getSingleBlogPublic,
   getSingleBlogAdmin,

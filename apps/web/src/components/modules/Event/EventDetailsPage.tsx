@@ -26,7 +26,6 @@ import {
 import { useGetMeQuery } from "@/redux/features/auth/authApi";
 import { mapApiEvent } from "@/lib/event";
 import { extractErrorMessage } from "@/lib/apiError";
-import BookAppointmentDialog from "@/components/shared/BookAppointmentDialog/BookAppointmentDialog";
 
 const EventDetailsPage = ({
   slug,
@@ -186,16 +185,6 @@ const EventDetailsPage = ({
                   </div>
 
                   <div className="flex flex-wrap gap-4">
-                    {rawEvent && (
-                      <BookAppointmentDialog
-                        organizationId={rawEvent.organizationId}
-                        organizationName={rawEvent.organization?.name}
-                        eventId={rawEvent.id}
-                        eventTitle={event.title}
-                        triggerLabel="Book Donation Slot"
-                        triggerClassName="h-16 px-12 rounded-2xl bg-primary text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-primary/30 hover:scale-105 transition-all"
-                      />
-                    )}
                     <Button
                       size="lg"
                       variant="outline"

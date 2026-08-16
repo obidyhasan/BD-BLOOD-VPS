@@ -592,10 +592,55 @@ const getAffiliatedDonors = async (organizationId: string) => {
   });
 };
 
+const getPublicStats = async (organizationId: string) => {
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId, isDeleted: false },
+    select: { id: true },
+  });
+  if (!organization) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  }
+
+  const [activeDonors, requestsFulfilled, verifiedDonations] =
+    await Promise.all([
+      prisma.donor.count({
+        where: {
+          isDeleted: false,
+          role: "DONOR",
+          accountStatus: "ACTIVE",
+          availabilityStatus: "AVAILABLE",
+          isVerified: true,
+          OR: [
+            { nextEligibleDonationDate: null },
+            { nextEligibleDonationDate: { lte: new Date() } },
+          ],
+          affiliations: { some: { organizationId, active: true } },
+        },
+      }),
+      prisma.bloodRequest.count({
+        where: {
+          handledByOrganizationId: organizationId,
+          isDeleted: false,
+          status: { in: ["FULFILLED", "COMPLETED"] },
+        },
+      }),
+      prisma.bloodDonation.count({
+        where: {
+          organizationId,
+          isDeleted: false,
+          verificationStatus: "VERIFIED",
+        },
+      }),
+    ]);
+
+  return { activeDonors, requestsFulfilled, verifiedDonations };
+};
+
 export const OrganizationService = {
   getOrganizationTree,
   getCanonicalOrganizationByUpazila,
   getAffiliatedDonors,
+  getPublicStats,
   createOrganization,
   registerOrganization,
   getAllOrganizations,

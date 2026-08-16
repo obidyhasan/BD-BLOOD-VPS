@@ -179,14 +179,6 @@ enum ContactMessageStatus {
   ARCHIVED
 }
 
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-}
-
 enum AchievementThresholdType {
   VERIFIED_DONATIONS
   TOTAL_DONATIONS

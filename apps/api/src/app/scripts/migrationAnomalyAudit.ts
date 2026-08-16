@@ -46,6 +46,7 @@ const checks = async (): Promise<AuditRow[]> => [
         SELECT "upazilaId"
         FROM "organizations"
         WHERE "isDeleted" = false
+          AND "level" = 'UPAZILA'
         GROUP BY "upazilaId"
         HAVING COUNT(*) > 1
       ) duplicates

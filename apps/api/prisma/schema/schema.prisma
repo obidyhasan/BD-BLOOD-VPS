@@ -14,12 +14,13 @@ model Division {
   deletedAt DateTime?
   isDeleted Boolean   @default(false)
 
-  districts      District[]
-  donors         Donor[]
-  bloodDonations BloodDonation[]
-  bloodRequests  BloodRequest[]
-  events         Event[]
-  organizations  Organization[]
+  districts           District[]
+  donors              Donor[]
+  bloodDonations      BloodDonation[]
+  bloodRequests       BloodRequest[]
+  events              Event[]
+  organizations       Organization[]
+  medicalInstitutions MedicalInstitution[]
 
   @@unique([name])
   @@map("divisions")
@@ -34,13 +35,14 @@ model District {
   deletedAt  DateTime?
   isDeleted  Boolean   @default(false)
 
-  division       Division        @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  upazilas       Upazila[]
-  donors         Donor[]
-  bloodDonations BloodDonation[]
-  bloodRequests  BloodRequest[]
-  events         Event[]
-  organizations  Organization[]
+  division            Division             @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazilas            Upazila[]
+  donors              Donor[]
+  bloodDonations      BloodDonation[]
+  bloodRequests       BloodRequest[]
+  events              Event[]
+  organizations       Organization[]
+  medicalInstitutions MedicalInstitution[]
 
   @@unique([divisionId, name])
   @@index([divisionId])
@@ -56,13 +58,14 @@ model Upazila {
   deletedAt  DateTime?
   isDeleted  Boolean   @default(false)
 
-  district          District                       @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  donors            Donor[]
-  donorAffiliations DonorOrganizationAffiliation[]
-  bloodDonations    BloodDonation[]
-  bloodRequests     BloodRequest[]
-  events            Event[]
-  organizations     Organization[]
+  district            District                       @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  donors              Donor[]
+  donorAffiliations   DonorOrganizationAffiliation[]
+  bloodDonations      BloodDonation[]
+  bloodRequests       BloodRequest[]
+  events              Event[]
+  organizations       Organization[]
+  medicalInstitutions MedicalInstitution[]
 
   @@unique([districtId, name])
   @@index([districtId])
@@ -77,10 +80,9 @@ model BloodGroup {
   deletedAt DateTime?
   isDeleted Boolean   @default(false)
 
-  donors       Donor[]
-  inventory    OrganizationBloodInventory[]
-  requests     BloodRequest[]
-  appointments DonationAppointment[]
+  donors    Donor[]
+  inventory OrganizationBloodInventory[]
+  requests  BloodRequest[]
 
   @@map("bloodGroups")
 }
@@ -145,7 +147,11 @@ model Donor {
   postComments                   PostComment[]
   postLikes                      PostLike[]
   donorAlerts                    BloodRequestDonorAlert[]
-  appointments                   DonationAppointment[]
+  authoredEvents                 Event[]                        @relation("EventCreatedBy")
+  reviewedEvents                 Event[]                        @relation("EventReviewedBy")
+  reviewedBlogs                  Blog[]                         @relation("BlogReviewedBy")
+  authoredGalleries              Gallery[]                      @relation("GalleryCreatedBy")
+  reviewedGalleries              Gallery[]                      @relation("GalleryReviewedBy")
   requestAssignments             RequestAssignment[]            @relation("DonorRequestAssignments")
   assignedRequests               RequestAssignment[]            @relation("RequestAssignmentAssignedBy")
   cancelledRequests              BloodRequest[]                 @relation("BloodRequestCancelledBy")
@@ -248,7 +254,7 @@ model Organization {
   bloodDonations            BloodDonation[]
   posts                     Post[]
   galleries                 Gallery[]
-  appointments              DonationAppointment[]
+  blogs                     Blog[]
 
   @@index([districtId])
   @@index([divisionId])
@@ -497,33 +503,6 @@ model BloodRequestStatusHistory {
   @@map("bloodRequestStatusHistory")
 }
 
-model DonationAppointment {
-  id             String            @id @default(uuid())
-  donorId        String
-  organizationId String
-  eventId        String?
-  bloodGroupId   String
-  scheduledAt    DateTime
-  status         AppointmentStatus @default(PENDING)
-  notes          String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  deletedAt      DateTime?
-  isDeleted      Boolean           @default(false)
-
-  donor        Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  event        Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  bloodGroup   BloodGroup   @relation(fields: [bloodGroupId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-
-  @@index([donorId])
-  @@index([organizationId])
-  @@index([eventId])
-  @@index([scheduledAt])
-  @@index([status])
-  @@map("donationAppointments")
-}
-
 model Post {
   id             String         @id @default(uuid())
   donorId        String
@@ -598,7 +577,7 @@ model PostLike {
 }
 
 model Event {
-  id              String    @id @default(uuid())
+  id              String         @id @default(uuid())
   organizationId  String
   title           String
   description     String?
@@ -612,24 +591,31 @@ model Event {
   districtId      String
   upazilaId       String
   locationDetails String?
+  createdById     String?
+  approvalStatus  ApprovalStatus @default(PENDING)
+  reviewedById    String?
+  reviewedAt      DateTime?
   // Added: slug for event detail page URL
-  slug            String?   @unique
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  slug            String?        @unique
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   deletedAt       DateTime?
-  isDeleted       Boolean   @default(false)
+  isDeleted       Boolean        @default(false)
 
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  division     Division              @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  district     District              @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  upazila      Upazila               @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  division     Division           @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district     District           @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila      Upazila            @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy    Donor?             @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reviewedBy   Donor?             @relation("EventReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   participants EventParticipant[]
-  appointments DonationAppointment[]
 
   @@index([organizationId])
   @@index([eventType])
   @@index([eventDate])
   @@index([districtId])
+  @@index([approvalStatus])
+  @@index([createdById])
   @@map("events")
 }
 
@@ -676,6 +662,9 @@ model MedicalInstitution {
   doctors               Doctor[]
   medicalInformations   MedicalInformation[]
   medicalAdvertisements MedicalAdvertisement[]
+  division              Division               @relation(fields: [divisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  district              District               @relation(fields: [districtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  upazila               Upazila                @relation(fields: [upazilaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([divisionId])
   @@index([districtId])
@@ -793,57 +782,72 @@ model Report {
 }
 
 model Blog {
-  id          String     @id @default(uuid())
-  title       String
-  slug        String     @unique
-  content     String
-  coverImage  String?
-  authorId    String
-  status      BlogStatus
+  id             String     @id @default(uuid())
+  title          String
+  slug           String     @unique
+  content        String
+  coverImage     String?
+  authorId       String
+  organizationId String?
+  status         BlogStatus
   // Added: matches frontend Blog.reads field
-  reads       Int        @default(0)
-  publishedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  deletedAt   DateTime?
-  isDeleted   Boolean    @default(false)
+  reads          Int        @default(0)
+  publishedAt    DateTime?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+  isDeleted      Boolean    @default(false)
 
-  author Donor @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  author       Donor         @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reviewedBy   Donor?        @relation("BlogReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([authorId])
+  @@index([organizationId])
+  @@index([status])
   @@map("blogs")
 }
 
 model Gallery {
-  id             String    @id @default(uuid())
+  id             String         @id @default(uuid())
   title          String
   description    String?
   // Added: matches frontend GalleryAsset.category
   category       String?
   // Added: matches frontend GalleryAsset.slug
-  slug           String    @unique
+  slug           String         @unique
   // Added: matches frontend GalleryAsset.img (primary cover image)
   coverImage     String?
   images         String[]
-  isPublished    Boolean   @default(true)
-  isFeatured     Boolean   @default(false)
-  sortOrder      Int       @default(0)
+  isPublished    Boolean        @default(true)
+  isFeatured     Boolean        @default(false)
+  sortOrder      Int            @default(0)
   // Nullable: an Organization-owned Gallery item has organizationId set to
   // that Organization; organizationId: null is the convention (matching
   // OrganizationMember's existing null-organizationId = "Central/National"
   // convention) for an admin-only, org-independent "Homepage Gallery" item
   // shown on the public Homepage rather than any single Organization's page.
   organizationId String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  approvalStatus ApprovalStatus @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
-  isDeleted      Boolean   @default(false)
+  isDeleted      Boolean        @default(false)
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdBy    Donor?        @relation("GalleryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reviewedBy   Donor?        @relation("GalleryReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([organizationId])
   @@index([organizationId, isPublished, sortOrder])
   @@index([isFeatured, isPublished])
+  @@index([approvalStatus])
+  @@index([createdById])
   @@map("galleries")
 }
 

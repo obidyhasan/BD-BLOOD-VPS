@@ -48,7 +48,6 @@ const isPrivateEndpoint = (endpoint: string) =>
   endpoint.startsWith("/blood-donations") ||
   endpoint.startsWith("/notifications") ||
   endpoint.startsWith("/reports") ||
-  endpoint.startsWith("/appointments") ||
   (endpoint.startsWith("/analytics/") &&
     !endpoint.startsWith("/analytics/public-stats")) ||
   endpoint.startsWith("/posts/my") ||

@@ -194,14 +194,6 @@ const getMyMembership = async (user: IJWTPayload) => {
 };
 
 const getPublicLeadershipMembers = async (scope: LeadershipScope) => {
-  if (
-    !scope.organizationId &&
-    !scope.divisionId &&
-    !scope.districtId &&
-    scope.level === PositionLevel.MANAGEMENT
-  ) {
-    return [];
-  }
   const resolvedOrganizationId = await resolveLeadershipOrganizationId(scope);
 
   if (resolvedOrganizationId === NO_MATCHING_ORGANIZATION) {
@@ -442,13 +434,12 @@ const updateMemberStatus = async (
       existing.status !== OrganizationMemberStatus.ACTIVE
     ) {
       if (
-        (existing.organization?.level === "UPAZILA" ||
-          existing.organization?.level === "CENTRAL") &&
+        existing.organization?.level === "UPAZILA" &&
         existing.category === GovernanceCategory.ADVISOR
       ) {
         throw new ApiError(
           httpStatus.CONFLICT,
-          `${existing.organization.level === "CENTRAL" ? "National" : "Upazila"} organizations do not permit Advisor appointments.`,
+          "Upazila organizations do not permit Advisor appointments.",
         );
       }
       const scope = `${existing.organizationId ?? "CENTRAL"}:${existing.category}`;
@@ -619,12 +610,12 @@ const assignOrganizationMember = async (
       );
     }
     if (
-      (organization.level === "UPAZILA" || organization.level === "CENTRAL") &&
+      organization.level === "UPAZILA" &&
       category === GovernanceCategory.ADVISOR
     ) {
       throw new ApiError(
         httpStatus.CONFLICT,
-        `${organization.level === "CENTRAL" ? "National" : "Upazila"} organizations do not permit Advisor appointments.`,
+        "Upazila organizations do not permit Advisor appointments.",
       );
     }
     const scope = `${organizationId ?? "CENTRAL"}:${category}`;

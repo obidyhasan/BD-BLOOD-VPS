@@ -16,7 +16,7 @@ const createDoctor = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getAllDoctors = catchAsync(async (req: Request, res: Response) => {
-  const filters = pick(req.query, ["institutionId"]);
+  const filters = pick(req.query, ["searchTerm", "institutionId", "divisionId", "districtId", "upazilaId"]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
   const result = await DoctorService.getAllDoctors(filters, options);
   sendResponse(res, {

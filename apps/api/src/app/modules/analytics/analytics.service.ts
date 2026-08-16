@@ -456,9 +456,19 @@ const getOrganizationStats = async (
   // `members` count is the same predicate as memberDonorIds above — reuse
   // its length instead of issuing a second, identical COUNT query.
   const [inventoryUnits, pendingRequests, pendingPosts] = await Promise.all([
-    prisma.organizationBloodInventory.aggregate({
-      where: { organizationId, isDeleted: false },
-      _sum: { availableUnits: true },
+    prisma.donor.count({
+      where: {
+        isDeleted: false,
+        role: "DONOR",
+        isVerified: true,
+        accountStatus: "ACTIVE",
+        availabilityStatus: "AVAILABLE",
+        OR: [
+          { nextEligibleDonationDate: null },
+          { nextEligibleDonationDate: { lte: new Date() } },
+        ],
+        affiliations: { some: { organizationId, active: true } },
+      },
     }),
     prisma.bloodRequestNotification.count({
       where: {
@@ -482,7 +492,7 @@ const getOrganizationStats = async (
   return {
     organizationId,
     members: memberDonorIds.length,
-    inventoryUnits: inventoryUnits._sum.availableUnits ?? 0,
+    inventoryUnits,
     pendingRequests,
     pendingPosts,
   };
@@ -491,25 +501,39 @@ const getOrganizationStats = async (
 const LOW_STOCK_THRESHOLD = 3;
 
 const getOrganizationShortages = async () => {
-  const inventory = await prisma.organizationBloodInventory.findMany({
-    where: { isDeleted: false },
+  const affiliations = await prisma.donorOrganizationAffiliation.findMany({
+    where: {
+      active: true,
+      organization: { isDeleted: false, organizationStatus: "ACTIVE" },
+      donor: {
+        isDeleted: false,
+        role: "DONOR",
+        isVerified: true,
+        accountStatus: "ACTIVE",
+        availabilityStatus: "AVAILABLE",
+        OR: [
+          { nextEligibleDonationDate: null },
+          { nextEligibleDonationDate: { lte: new Date() } },
+        ],
+      },
+    },
     include: {
-      bloodGroup: true,
+      donor: { include: { bloodGroup: true } },
       organization: true,
     },
   });
 
   const districtIds = [
     ...new Set(
-      inventory
-        .map((row) => row.organization?.districtId)
+      affiliations
+        .map((row) => row.organization.districtId)
         .filter((id): id is string => Boolean(id)),
     ),
   ];
   const divisionIds = [
     ...new Set(
-      inventory
-        .map((row) => row.organization?.divisionId)
+      affiliations
+        .map((row) => row.organization.divisionId)
         .filter((id): id is string => Boolean(id)),
     ),
   ];
@@ -543,11 +567,15 @@ const getOrganizationShortages = async () => {
     }
   >();
 
-  for (const row of inventory) {
-    const org = row.organization;
-    if (!org || org.isDeleted) continue;
+  const counts = new Map<string, number>();
+  for (const row of affiliations) {
+    const key = `${row.organizationId}:${row.donor.bloodGroupId}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
 
-    const groupName = row.bloodGroup?.groupName;
+  for (const row of affiliations) {
+    const org = row.organization;
+    const groupName = row.donor.bloodGroup?.groupName;
     if (!groupName) continue;
 
     const locationParts = [
@@ -569,11 +597,8 @@ const getOrganizationShortages = async () => {
     }
 
     const entry = byOrg.get(org.id)!;
-    if (row.availableUnits <= 0) {
-      if (!entry.outGroups.includes(groupName)) {
-        entry.outGroups.push(groupName);
-      }
-    } else if (row.availableUnits <= LOW_STOCK_THRESHOLD) {
+    const availableUnits = counts.get(`${org.id}:${row.donor.bloodGroupId}`) ?? 0;
+    if (availableUnits <= LOW_STOCK_THRESHOLD) {
       if (!entry.lowGroups.includes(groupName)) {
         entry.lowGroups.push(groupName);
       }

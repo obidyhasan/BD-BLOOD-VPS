@@ -18,6 +18,7 @@ const createDoctor = async (payload: any) => {
       specialization: payload.specialization,
       phone: payload.phone,
       visitingHours: payload.visitingHours,
+      experience: payload.experience,
     },
     include: { institution: true },
   });
@@ -30,6 +31,17 @@ const getAllDoctors = async (params: IGenericFilters, options: IOptions) => {
   const whereConditions: Prisma.DoctorWhereInput = {
     isDeleted: false,
     ...((params as Record<string, string | undefined>).institutionId ? { institutionId: (params as Record<string, string | undefined>).institutionId } : {}),
+    ...((params as Record<string, string | undefined>).divisionId ? { institution: { divisionId: (params as Record<string, string>).divisionId } } : {}),
+    ...((params as Record<string, string | undefined>).districtId ? { institution: { districtId: (params as Record<string, string>).districtId } } : {}),
+    ...((params as Record<string, string | undefined>).upazilaId ? { institution: { upazilaId: (params as Record<string, string>).upazilaId } } : {}),
+    ...((params as Record<string, string | undefined>).searchTerm
+      ? {
+          OR: [
+            { name: { contains: (params as Record<string, string>).searchTerm, mode: "insensitive" } },
+            { specialization: { contains: (params as Record<string, string>).searchTerm, mode: "insensitive" } },
+          ],
+        }
+      : {}),
   };
 
   const [result, total] = await Promise.all([

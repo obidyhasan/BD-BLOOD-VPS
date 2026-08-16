@@ -7,27 +7,37 @@ import {
   createEventZodSchema,
   joinEventZodSchema,
   updateEventZodSchema,
+  updateEventApprovalZodSchema,
 } from "./event.validation";
 
 const router = Router();
 
+router.get("/admin/all", auth(Role.ADMIN), EventController.getAllEventsAdmin);
+router.get("/manage", auth(Role.ADMIN, Role.DONOR), EventController.getManagedEvents);
 router.get("/", EventController.getAllEvents);
 router.get("/by-slug/:slug", EventController.getEventBySlug);
 router.get("/:id", EventController.getSingleEvent);
 
 router.post(
   "/",
-  auth(Role.ADMIN),
+  auth(Role.ADMIN, Role.DONOR),
   validateRequest(createEventZodSchema),
   EventController.createEvent,
 );
 router.patch(
   "/:id",
-  auth(Role.ADMIN),
+  auth(Role.ADMIN, Role.DONOR),
   validateRequest(updateEventZodSchema),
   EventController.updateEvent,
 );
-router.delete("/:id", auth(Role.ADMIN), EventController.deleteEvent);
+router.delete("/:id", auth(Role.ADMIN, Role.DONOR), EventController.deleteEvent);
+
+router.patch(
+  "/admin/:id/approval",
+  auth(Role.ADMIN),
+  validateRequest(updateEventApprovalZodSchema),
+  EventController.updateEventApproval,
+);
 
 router.post(
   "/:id/join",

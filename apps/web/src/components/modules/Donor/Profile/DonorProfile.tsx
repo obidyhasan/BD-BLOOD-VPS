@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useGetMeQuery } from "@/redux/features/auth/authApi";
 import { useGetMyDonationsQuery } from "@/redux/features/bloodDonations/bloodDonationsApi";
-import { useGetMyAppointmentsQuery } from "@/redux/features/appointments/appointmentsApi";
 import { format } from "date-fns";
 import {
   Carousel,
@@ -54,6 +53,7 @@ import {
   isExternalProfilePhoto,
   resolveProfilePhoto,
 } from "@/lib/profilePhoto";
+import { DonationShareCard } from "./DonationShareCard";
 
 // Maps the `icon` name stored on the Achievement record (seeded from the
 // original hardcoded donorAchievements.ts) to the lucide icon + colors the
@@ -93,10 +93,6 @@ const DonorProfile = ({
   const { data: donationsData } = useGetMyDonationsQuery(undefined, {
     skip: !isDashboard,
   });
-  const { data: appointmentsData } = useGetMyAppointmentsQuery(undefined, {
-    skip: !isDashboard,
-  });
-  const recentAppointments = appointmentsData?.data?.slice(0, 3) ?? [];
   const recentDonations = donationsData?.data?.slice(0, 3) ?? [];
 
   const donor = isDashboard
@@ -333,10 +329,14 @@ const DonorProfile = ({
             bg: "bg-amber-500/10",
           },
           {
-            label: "Network Posts",
-            val: String(posts.length),
-            sub: "Published activity",
-            icon: Star,
+            label: isDashboard ? "Referrals" : "Network Posts",
+            val: String(
+              isDashboard && donor && "referralCount" in donor
+                ? (donor.referralCount ?? 0)
+                : posts.length,
+            ),
+            sub: isDashboard ? "Registered donors referred" : "Published activity",
+            icon: isDashboard ? Users : Star,
             color: "text-indigo-500",
             bg: "bg-indigo-500/10",
           },
@@ -371,6 +371,15 @@ const DonorProfile = ({
           </motion.div>
         ))}
       </section>
+
+      {isDashboard && donor && (
+        <DonationShareCard
+          donorName={donor.fullName}
+          profilePhoto={donor.profilePhoto}
+          verifiedDonations={fulfilledUnits}
+          achievement={achievements.find((item) => item.unlocked)?.title}
+        />
+      )}
 
       {/* Donor Achievements - NEW SECTION */}
       {isDashboard && (
@@ -437,64 +446,18 @@ const DonorProfile = ({
       )}
 
       {/* Recent Activity (Dashboard Only) */}
-      {isDashboard &&
-        (recentAppointments.length > 0 || recentDonations.length > 0) && (
+      {isDashboard && recentDonations.length > 0 && (
           <section className="space-y-10">
             <div className="space-y-2 pl-2">
               <h3 className="text-2xl md:text-4xl font-black text-foreground tracking-tighter uppercase leading-none">
                 Recent <span className="text-primary">Activity</span>
               </h3>
               <p className="text-muted-foreground font-medium text-lg leading-relaxed max-w-xl">
-                A quick glance at your latest appointments and donations.
+                A quick glance at your latest verified donation activity.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10">
-              {recentAppointments.length > 0 && (
-                <Card className="rounded-[2.5rem] border-border/40 shadow-none overflow-hidden bg-white dark:bg-zinc-950 p-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <h4 className="text-xl font-black uppercase tracking-tight">
-                      Appointments
-                    </h4>
-                    <Link href="/dashboard/donor/appointments">
-                      <Button
-                        variant="ghost"
-                        className="text-xs font-bold uppercase  text-primary hover:bg-primary/10 rounded-full px-4"
-                      >
-                        View All
-                      </Button>
-                    </Link>
-                  </div>
-                  <div className="space-y-4">
-                    {recentAppointments.map((appt) => (
-                      <div
-                        key={appt.id}
-                        className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-border/40"
-                      >
-                        <div>
-                          <p className="font-bold text-sm uppercase tracking-tight">
-                            {appt.organization?.name ?? "Organization"}
-                          </p>
-                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-2 mt-1">
-                            <Activity className="size-3" />{" "}
-                            {format(
-                              new Date(appt.scheduledAt),
-                              "MMM dd, yyyy - p",
-                            )}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className="rounded-full font-black text-[9px] uppercase  px-3 py-1 bg-white dark:bg-zinc-950"
-                        >
-                          {appt.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
+            <div className="grid grid-cols-1 gap-6 mt-10">
               {recentDonations.length > 0 && (
                 <Card className="rounded-[2.5rem] border-border/40 shadow-none overflow-hidden bg-white dark:bg-zinc-950 p-8">
                   <div className="flex items-center justify-between mb-6">
@@ -538,7 +501,7 @@ const DonorProfile = ({
               )}
             </div>
           </section>
-        )}
+      )}
 
       {/* Social Feed Section */}
       <section className="space-y-10">

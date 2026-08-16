@@ -16,7 +16,6 @@ import { useSessionUser } from "@/hooks/useSessionUser";
 import { useGetMyMembershipQuery } from "@/redux/features/organizations/organizationsApi";
 import {
   Bell,
-  CalendarCheck,
   ChevronDown,
   ClipboardList,
   Droplets,
@@ -32,11 +31,6 @@ import { Button } from "@/components/ui/button";
 const donorShortcuts = [
   { label: "Profile", href: "/dashboard/donor", icon: User },
   { label: "My Donations", href: "/dashboard/donor/donations", icon: Droplets },
-  {
-    label: "Appointments",
-    href: "/dashboard/donor/appointments",
-    icon: CalendarCheck,
-  },
   {
     label: "Notifications",
     href: "/dashboard/donor/notifications",

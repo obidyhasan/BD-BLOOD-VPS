@@ -55,39 +55,10 @@ export const inventoryApi = baseApi.injectEndpoints({
       providesTags: ["OrganizationInventory"],
     }),
 
-    upsertInventory: builder.mutation<
-      { success: boolean; data: OrganizationInventoryRecord },
-      {
-        organizationId: string;
-        bloodGroupId: string;
-        availableUnits: number;
-      }
-    >({
-      query: (body) => ({
-        url: "/organization-inventory/upsert",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: ["OrganizationInventory"],
-    }),
-
-    updateInventoryItem: builder.mutation<
-      { success: boolean; data: OrganizationInventoryRecord },
-      { id: string; availableUnits: number }
-    >({
-      query: ({ id, availableUnits }) => ({
-        url: `/organization-inventory/${id}`,
-        method: "PATCH",
-        body: { availableUnits },
-      }),
-      invalidatesTags: ["OrganizationInventory"],
-    }),
   }),
 });
 
 export const {
   useGetOrganizationInventoryQuery,
   useGetAllInventoryQuery,
-  useUpsertInventoryMutation,
-  useUpdateInventoryItemMutation,
 } = inventoryApi;

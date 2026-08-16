@@ -43,11 +43,17 @@ const blogSchema = z.object({
 
 type BlogModalProps = {
   blog?: BlogType;
+  organizationId?: string;
   trigger?: React.ReactNode;
   onSuccess?: () => void;
 };
 
-const BlogModal = ({ blog, trigger, onSuccess }: BlogModalProps) => {
+const BlogModal = ({
+  blog,
+  organizationId,
+  trigger,
+  onSuccess,
+}: BlogModalProps) => {
   const [open, setOpen] = useState(false);
 
   const [createBlog, { isLoading: isCreating }] = useCreateBlogMutation();
@@ -90,8 +96,13 @@ const BlogModal = ({ blog, trigger, onSuccess }: BlogModalProps) => {
           title: data.title,
           content: data.content,
           coverImage: data.coverImage,
+          organizationId,
         }).unwrap();
-        toast.success("New blog article published");
+        toast.success(
+          organizationId
+            ? "Article submitted for Admin approval"
+            : "New blog article created",
+        );
       }
       onSuccess?.();
       setOpen(false);

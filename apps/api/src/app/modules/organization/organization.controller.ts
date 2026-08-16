@@ -177,10 +177,21 @@ const getAffiliatedDonors = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getPublicStats = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrganizationService.getPublicStats(req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Organization statistics retrieved successfully!",
+    data: result,
+  });
+});
+
 export const OrganizationController = {
   getOrganizationTree,
   getCanonicalOrganizationByUpazila,
   getAffiliatedDonors,
+  getPublicStats,
   createOrganization,
   registerOrganization,
   getAllOrganizations,

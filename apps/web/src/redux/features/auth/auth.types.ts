@@ -45,6 +45,7 @@ export interface User {
   notifyInApp?: boolean;
   notifySms?: boolean;
   notifyEmail?: boolean;
+  referralCount?: number;
   createdAt: string;
 }
 

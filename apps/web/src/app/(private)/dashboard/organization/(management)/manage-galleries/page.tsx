@@ -251,7 +251,11 @@ export default function OrganizationGalleryPage() {
                     <Badge
                       className={`rounded-full px-3 py-1 text-[8px] font-black uppercase border-none ${asset.isPublished ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
                     >
-                      {asset.isPublished ? "Published" : "Unpublished"}
+                        {asset.approvalStatus === "PENDING"
+                          ? "Pending Admin review"
+                          : asset.approvalStatus === "REJECTED"
+                            ? "Rejected"
+                            : "Approved"}
                     </Badge>
                     {asset.category && (
                       <Badge
@@ -287,7 +291,7 @@ export default function OrganizationGalleryPage() {
                   {asset.title}
                 </p>
                 <p className="text-[10px] font-bold text-muted-foreground opacity-40 uppercase">
-                  {asset.images.length} photos
+                  {asset.images.length} photos · {asset.approvalStatus ?? "PENDING"}
                 </p>
               </div>
             </motion.div>

@@ -20,6 +20,11 @@ router.patch(
   validateRequest(updateBlogStatusZodSchema),
   BlogController.updateBlogStatus,
 );
+router.get(
+  "/manage",
+  auth(Role.ADMIN, Role.DONOR),
+  BlogController.getManagedBlogs,
+);
 
 // Public
 router.get("/", BlogController.getAllBlogsPublic);
@@ -30,16 +35,16 @@ router.post("/:id/read", BlogController.incrementReadCount);
 // Admin-managed Education & Stories content
 router.post(
   "/",
-  auth(Role.ADMIN),
+  auth(Role.ADMIN, Role.DONOR),
   validateRequest(createBlogZodSchema),
   BlogController.createBlog,
 );
 router.patch(
   "/:id",
-  auth(Role.ADMIN),
+  auth(Role.ADMIN, Role.DONOR),
   validateRequest(updateBlogZodSchema),
   BlogController.updateBlog,
 );
-router.delete("/:id", auth(Role.ADMIN), BlogController.deleteBlog);
+router.delete("/:id", auth(Role.ADMIN, Role.DONOR), BlogController.deleteBlog);
 
 export const BlogRoutes = router;

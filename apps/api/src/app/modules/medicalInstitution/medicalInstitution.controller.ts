@@ -16,7 +16,7 @@ const createInstitution = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getAllInstitutions = catchAsync(async (req: Request, res: Response) => {
-  const filters = pick(req.query, ["divisionId", "districtId", "upazilaId"]);
+  const filters = pick(req.query, ["searchTerm", "divisionId", "districtId", "upazilaId"]);
   const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
   const result = await MedicalInstitutionService.getAllInstitutions(
     filters,

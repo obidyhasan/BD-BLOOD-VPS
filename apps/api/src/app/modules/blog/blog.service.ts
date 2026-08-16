@@ -7,6 +7,7 @@ import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
 import { blogSearchableFields } from "./blog.constant";
 import { isUuid, toSlug } from "../../shared/slugHelper";
+import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
 
 const uniqueBlogSlug = async (title: string, excludeId?: string) => {
   let base = toSlug(title) || "blog";
@@ -79,6 +80,13 @@ const normalizeBlogSortBy = (
 const createBlog = async (user: IJWTPayload, payload: any) => {
   const donor = await getRequesterDonor(user);
 
+  if (user.role !== "ADMIN") {
+    if (!payload.organizationId) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Organization ID is required for organization-authored blogs.");
+    }
+    await assertCanAccessOrganizationDashboard(user, payload.organizationId);
+  }
+
   const slug = await uniqueBlogSlug(payload.title);
 
   return prisma.blog.create({
@@ -88,11 +96,13 @@ const createBlog = async (user: IJWTPayload, payload: any) => {
       content: payload.content,
       coverImage: payload.coverImage,
       authorId: donor.id,
+      organizationId: payload.organizationId ?? null,
       status: BlogStatus.PENDING,
       publishedAt: null,
     },
     include: {
       author: { omit: { password: true } },
+      organization: true,
     },
   });
 };
@@ -137,6 +147,7 @@ const getAllBlogs = async (params: IGenericFilters, options: IOptions, onlyAppro
       orderBy: { [orderByField]: sortOrder },
       include: {
         author: { omit: { password: true } },
+        organization: true,
       },
     }),
     prisma.blog.count({ where: whereConditions }),
@@ -185,6 +196,7 @@ const getBlogBySlug = async (slug: string, onlyApproved = false) => {
     },
     include: {
       author: { omit: { password: true } },
+      organization: true,
     },
   });
 
@@ -206,6 +218,7 @@ const getSingleBlog = async (slugOrId: string, onlyApproved = false) => {
     },
     include: {
       author: { omit: { password: true } },
+      organization: true,
     },
   });
 
@@ -215,7 +228,7 @@ const getSingleBlog = async (slugOrId: string, onlyApproved = false) => {
 const updateBlog = async (
   user: IJWTPayload,
   id: string,
-  payload: Prisma.BlogUpdateInput,
+  payload: Prisma.BlogUncheckedUpdateInput,
 ) => {
   const donor = await getRequesterDonor(user);
 
@@ -230,18 +243,27 @@ const updateBlog = async (
       "You are not allowed to update this blog!",
     );
   }
+  if (user.role !== "ADMIN") {
+    if (!existing.organizationId) {
+      throw new ApiError(httpStatus.FORBIDDEN, "Only an Admin can manage platform blogs.");
+    }
+    await assertCanAccessOrganizationDashboard(user, existing.organizationId);
+  }
 
   return prisma.blog.update({
     where: { id },
     data: {
       ...payload,
-      status: existing.status,
-      publishedAt: existing.publishedAt,
+      status: user.role === "ADMIN" ? existing.status : BlogStatus.PENDING,
+      publishedAt: user.role === "ADMIN" ? existing.publishedAt : null,
+      reviewedById: user.role === "ADMIN" ? existing.reviewedById : null,
+      reviewedAt: user.role === "ADMIN" ? existing.reviewedAt : null,
     },
   });
 };
 
-const updateBlogStatus = async (id: string, status: BlogStatus) => {
+const updateBlogStatus = async (user: IJWTPayload, id: string, status: BlogStatus) => {
+  const reviewer = await getRequesterDonor(user);
   const existing = await prisma.blog.findUnique({
     where: { id, isDeleted: false },
   });
@@ -252,6 +274,8 @@ const updateBlogStatus = async (id: string, status: BlogStatus) => {
     data: {
       status,
       publishedAt: status === BlogStatus.APPROVED ? new Date() : null,
+      reviewedById: reviewer.id,
+      reviewedAt: new Date(),
     },
   });
 };
@@ -268,6 +292,12 @@ const deleteBlog = async (user: IJWTPayload, id: string) => {
       httpStatus.FORBIDDEN,
       "You are not allowed to delete this blog!",
     );
+  }
+  if (user.role !== "ADMIN") {
+    if (!existing.organizationId) {
+      throw new ApiError(httpStatus.FORBIDDEN, "Only an Admin can delete platform blogs.");
+    }
+    await assertCanAccessOrganizationDashboard(user, existing.organizationId);
   }
 
   return prisma.blog.update({

@@ -254,22 +254,6 @@ export const assertCanUpdateBloodRequest = async (
   return requestAccess.handledByOrganizationId;
 };
 
-export const assertCanManageInventoryItem = async (
-  user: IJWTPayload,
-  inventoryItemId: string,
-): Promise<string> => {
-  const item = await prisma.organizationBloodInventory.findUnique({
-    where: { id: inventoryItemId, isDeleted: false },
-    select: { organizationId: true },
-  });
-  if (!item) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Inventory item not found!");
-  }
-
-  await assertCanManageInventory(user, item.organizationId);
-  return item.organizationId;
-};
-
 export const assertCanManageGallery = async (
   user: IJWTPayload,
   galleryId?: string,

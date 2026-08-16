@@ -10,6 +10,7 @@ import {
 
 const router = Router();
 
+router.get("/admin/all", auth(Role.ADMIN), MedicalInformationController.getAllMedicalInformationsAdmin);
 router.get("/", MedicalInformationController.getAllMedicalInformations);
 router.get("/:id", MedicalInformationController.getSingleMedicalInformation);
 

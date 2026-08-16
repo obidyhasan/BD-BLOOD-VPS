@@ -6,9 +6,10 @@ import pick from "../../shared/pick";
 import { IJWTPayload } from "../../types";
 import { EventService } from "./event.service";
 import { eventFilterableFields } from "./event.constant";
+import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
 
-const createEvent = catchAsync(async (req: Request, res: Response) => {
-  const result = await EventService.createEvent(req.body);
+const createEvent = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const result = await EventService.createEvent(req.user as IJWTPayload, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -51,8 +52,8 @@ const getSingleEvent = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const updateEvent = catchAsync(async (req: Request, res: Response) => {
-  const result = await EventService.updateEvent(req.params.id, req.body);
+const updateEvent = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const result = await EventService.updateEvent(req.user as IJWTPayload, req.params.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -61,14 +62,38 @@ const updateEvent = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const deleteEvent = catchAsync(async (req: Request, res: Response) => {
-  const result = await EventService.deleteEvent(req.params.id);
+const deleteEvent = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const result = await EventService.deleteEvent(req.user as IJWTPayload, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: "Event deleted successfully!",
     data: result,
   });
+});
+
+const getAllEventsAdmin = catchAsync(async (req: Request, res: Response) => {
+  const filters = pick(req.query, eventFilterableFields);
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const result = await EventService.getAllEvents(filters, options, true);
+  sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Events retrieved successfully!", data: result.data, meta: result.meta });
+});
+
+const getManagedEvents = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const organizationId = typeof req.query.organizationId === "string" ? req.query.organizationId : "";
+  await assertCanAccessOrganizationDashboard(req.user as IJWTPayload, organizationId);
+  const filters = {
+    ...pick(req.query, eventFilterableFields),
+    organizationId,
+  };
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+  const result = await EventService.getAllEvents(filters, options, true);
+  sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Organization events retrieved successfully!", data: result.data, meta: result.meta });
+});
+
+const updateEventApproval = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+  const result = await EventService.updateEventApproval(req.user as IJWTPayload, req.params.id, req.body.approvalStatus);
+  sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Event approval updated successfully!", data: result });
 });
 
 const joinEvent = catchAsync(
@@ -120,10 +145,13 @@ const getEventParticipants = catchAsync(async (req: Request, res: Response) => {
 export const EventController = {
   createEvent,
   getAllEvents,
+  getAllEventsAdmin,
+  getManagedEvents,
   getEventBySlug,
   getSingleEvent,
   updateEvent,
   deleteEvent,
+  updateEventApproval,
   joinEvent,
   leaveEvent,
   getEventParticipants,

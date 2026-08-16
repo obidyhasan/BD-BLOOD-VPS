@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { AccountStatus, Prisma } from "@prisma/client";
+import { AccountStatus, ApprovalStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
@@ -7,6 +7,8 @@ import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
 import { eventSearchableFields } from "./event.constant";
 import { isUuid, toSlug } from "../../shared/slugHelper";
+import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
+import { assertGeographicHierarchy } from "../../shared/geographicHierarchy";
 
 const getRequesterDonor = async (user: IJWTPayload) => {
   const donor = await prisma.donor.findUnique({ where: { email: user.email } });
@@ -36,11 +38,23 @@ const uniqueEventSlug = async (title: string, excludeId?: string) => {
   return slug;
 };
 
-const createEvent = async (payload: any) => {
+const createEvent = async (user: IJWTPayload, payload: any) => {
+  const creator = await getRequesterDonor(user);
+  if (user.role !== "ADMIN") {
+    await assertCanAccessOrganizationDashboard(user, payload.organizationId);
+  }
   const org = await prisma.organization.findUnique({
     where: { id: payload.organizationId, isDeleted: false },
   });
   if (!org) throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  await assertGeographicHierarchy(prisma, payload.divisionId, payload.districtId, payload.upazilaId);
+  if (
+    org.divisionId !== payload.divisionId ||
+    org.districtId !== payload.districtId ||
+    (org.level === "UPAZILA" && org.upazilaId !== payload.upazilaId)
+  ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Event location must belong to the selected organization scope.");
+  }
 
   const eventDate =
     payload.eventDate instanceof Date
@@ -66,6 +80,10 @@ const createEvent = async (payload: any) => {
       upazilaId: payload.upazilaId,
       locationDetails: payload.locationDetails,
       slug,
+      createdById: creator.id,
+      approvalStatus: user.role === "ADMIN" ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+      reviewedById: user.role === "ADMIN" ? creator.id : null,
+      reviewedAt: user.role === "ADMIN" ? new Date() : null,
     },
     include: {
       organization: true,
@@ -76,12 +94,15 @@ const createEvent = async (payload: any) => {
   });
 };
 
-const getAllEvents = async (params: IGenericFilters, options: IOptions) => {
+const getAllEvents = async (params: IGenericFilters, options: IOptions, management = false) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
   const { searchTerm, ...filterData } = params as Record<string, string | undefined>;
 
-  const andConditions: Prisma.EventWhereInput[] = [{ isDeleted: false }];
+  const andConditions: Prisma.EventWhereInput[] = [{
+    isDeleted: false,
+    ...(management ? {} : { approvalStatus: ApprovalStatus.APPROVED }),
+  }];
 
   if (searchTerm) {
     andConditions.push({
@@ -125,13 +146,13 @@ const resolveEventId = async (slugOrId: string) => {
   if (isUuid(slugOrId)) return slugOrId;
 
   const bySlug = await prisma.event.findFirst({
-    where: { slug: slugOrId, isDeleted: false },
+    where: { slug: slugOrId, isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
     select: { id: true },
   });
   if (bySlug) return bySlug.id;
 
   const events = await prisma.event.findMany({
-    where: { isDeleted: false },
+    where: { isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
     select: { id: true, title: true },
   });
   const match = events.find((e) => toSlug(e.title) === slugOrId);
@@ -143,7 +164,7 @@ const getSingleEvent = async (slugOrId: string) => {
   const id = await resolveEventId(slugOrId);
 
   return prisma.event.findUniqueOrThrow({
-    where: { id, isDeleted: false },
+    where: { id, isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
     include: {
       organization: true,
       division: true,
@@ -151,7 +172,15 @@ const getSingleEvent = async (slugOrId: string) => {
       upazila: true,
       participants: {
         include: {
-          donor: { omit: { password: true }, include: { bloodGroup: true } },
+          donor: {
+            select: {
+              id: true,
+              slug: true,
+              fullName: true,
+              profilePhoto: true,
+              bloodGroup: { select: { groupName: true } },
+            },
+          },
         },
       },
     },
@@ -160,7 +189,7 @@ const getSingleEvent = async (slugOrId: string) => {
 
 const getEventBySlug = async (slug: string) => {
   const event = await prisma.event.findFirst({
-    where: { slug, isDeleted: false },
+    where: { slug, isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
     include: {
       organization: true,
       division: true,
@@ -168,7 +197,15 @@ const getEventBySlug = async (slug: string) => {
       upazila: true,
       participants: {
         include: {
-          donor: { omit: { password: true }, include: { bloodGroup: true } },
+          donor: {
+            select: {
+              id: true,
+              slug: true,
+              fullName: true,
+              profilePhoto: true,
+              bloodGroup: { select: { groupName: true } },
+            },
+          },
         },
       },
     },
@@ -181,27 +218,55 @@ const getEventBySlug = async (slug: string) => {
   return event;
 };
 
-const updateEvent = async (id: string, payload: Prisma.EventUpdateInput) => {
+const updateEvent = async (user: IJWTPayload, id: string, payload: Prisma.EventUncheckedUpdateInput) => {
   const existing = await prisma.event.findUnique({
     where: { id, isDeleted: false },
   });
   if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Event not found!");
+  if (user.role !== "ADMIN") {
+    await assertCanAccessOrganizationDashboard(user, existing.organizationId);
+  }
+
+  const divisionId = typeof payload.divisionId === "string" ? payload.divisionId : existing.divisionId;
+  const districtId = typeof payload.districtId === "string" ? payload.districtId : existing.districtId;
+  const upazilaId = typeof payload.upazilaId === "string" ? payload.upazilaId : existing.upazilaId;
+  await assertGeographicHierarchy(prisma, divisionId, districtId, upazilaId);
 
   return prisma.event.update({
     where: { id },
-    data: payload,
+    data: {
+      ...payload,
+      ...(user.role === "ADMIN" ? {} : {
+        approvalStatus: ApprovalStatus.PENDING,
+        reviewedById: null,
+        reviewedAt: null,
+      }),
+    },
   });
 };
 
-const deleteEvent = async (id: string) => {
+const deleteEvent = async (user: IJWTPayload, id: string) => {
   const existing = await prisma.event.findUnique({
     where: { id, isDeleted: false },
   });
   if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Event not found!");
+  if (user.role !== "ADMIN") {
+    await assertCanAccessOrganizationDashboard(user, existing.organizationId);
+  }
 
   return prisma.event.update({
     where: { id },
     data: { isDeleted: true, deletedAt: new Date() },
+  });
+};
+
+const updateEventApproval = async (user: IJWTPayload, id: string, approvalStatus: ApprovalStatus) => {
+  const reviewer = await getRequesterDonor(user);
+  const existing = await prisma.event.findUnique({ where: { id, isDeleted: false } });
+  if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Event not found!");
+  return prisma.event.update({
+    where: { id },
+    data: { approvalStatus, reviewedById: reviewer.id, reviewedAt: new Date() },
   });
 };
 
@@ -212,7 +277,7 @@ const joinEvent = async (
 ) => {
   const donor = await getRequesterDonor(user);
   const event = await prisma.event.findUnique({
-    where: { id: eventId, isDeleted: false },
+    where: { id: eventId, isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
   });
   if (!event) throw new ApiError(httpStatus.NOT_FOUND, "Event not found!");
 
@@ -279,8 +344,6 @@ const getEventParticipants = async (eventId: string, options: IOptions) => {
           select: {
             id: true,
             fullName: true,
-            email: true,
-            phone: true,
             bloodGroup: { select: { groupName: true } },
             profilePhoto: true,
           },
@@ -303,6 +366,7 @@ export const EventService = {
   getEventBySlug,
   updateEvent,
   deleteEvent,
+  updateEventApproval,
   joinEvent,
   leaveEvent,
   getEventParticipants,

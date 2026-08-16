@@ -1,10 +1,20 @@
 import httpStatus from "http-status";
-import { Prisma } from "@prisma/client";
+import { AccountStatus, ApprovalStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { isUuid, toSlug } from "../../shared/slugHelper";
+import { IJWTPayload } from "../../types";
+
+const getRequesterDonor = async (user: IJWTPayload) => {
+  const donor = await prisma.donor.findUnique({ where: { email: user.email, isDeleted: false } });
+  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
+  if (donor.accountStatus !== AccountStatus.ACTIVE) {
+    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
+  }
+  return donor;
+};
 
 type CreateGalleryPayload = {
   title: string;
@@ -20,7 +30,8 @@ type CreateGalleryPayload = {
   organizationId?: string;
 };
 
-const createGallery = async (payload: CreateGalleryPayload) => {
+const createGallery = async (user: IJWTPayload, payload: CreateGalleryPayload) => {
+  const creator = await getRequesterDonor(user);
   if (payload.organizationId) {
     const org = await prisma.organization.findFirst({
       where: {
@@ -52,13 +63,14 @@ const createGallery = async (payload: CreateGalleryPayload) => {
       slug,
       coverImage: payload.coverImage ?? payload.images[0],
       images: payload.images,
-      isPublished: payload.isPublished ?? true,
       isFeatured: payload.isFeatured ?? false,
       sortOrder: payload.sortOrder ?? 0,
-
-      ...(payload.organizationId
-        ? { organization: { connect: { id: payload.organizationId } } }
-        : {}),
+      createdById: creator.id,
+      approvalStatus: user.role === "ADMIN" ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+      isPublished: user.role === "ADMIN" ? (payload.isPublished ?? true) : false,
+      reviewedById: user.role === "ADMIN" ? creator.id : null,
+      reviewedAt: user.role === "ADMIN" ? new Date() : null,
+      organizationId: payload.organizationId ?? null,
     },
 
     include: {
@@ -84,7 +96,7 @@ const getAllGalleries = async (
   // one of the two above).
   const whereConditions: Prisma.GalleryWhereInput = {
     isDeleted: false,
-    ...(management ? {} : { isPublished: true }),
+    ...(management ? {} : { isPublished: true, approvalStatus: ApprovalStatus.APPROVED }),
     ...(filters.scope === "homepage"
       ? { organizationId: null }
       : filters.organizationId
@@ -123,7 +135,12 @@ const getSingleGallery = async (slugOrId: string, management = false) => {
       where: {
         id: slugOrId,
         isDeleted: false,
-        ...(management ? {} : { isPublished: true }),
+        ...(management
+          ? {}
+          : {
+              isPublished: true,
+              approvalStatus: ApprovalStatus.APPROVED,
+            }),
       },
       include: { organization: true },
     });
@@ -133,7 +150,7 @@ const getSingleGallery = async (slugOrId: string, management = false) => {
     where: {
       slug: slugOrId,
       isDeleted: false,
-      ...(management ? {} : { isPublished: true }),
+      ...(management ? {} : { isPublished: true, approvalStatus: ApprovalStatus.APPROVED }),
     },
     include: { organization: true },
   });
@@ -142,7 +159,7 @@ const getSingleGallery = async (slugOrId: string, management = false) => {
   const galleries = await prisma.gallery.findMany({
     where: {
       isDeleted: false,
-      ...(management ? {} : { isPublished: true }),
+      ...(management ? {} : { isPublished: true, approvalStatus: ApprovalStatus.APPROVED }),
     },
     select: { id: true, title: true },
   });
@@ -153,7 +170,7 @@ const getSingleGallery = async (slugOrId: string, management = false) => {
     where: {
       id: match.id,
       isDeleted: false,
-      ...(management ? {} : { isPublished: true }),
+      ...(management ? {} : { isPublished: true, approvalStatus: ApprovalStatus.APPROVED }),
     },
     include: { organization: true },
   });
@@ -161,7 +178,7 @@ const getSingleGallery = async (slugOrId: string, management = false) => {
 
 const getGalleryBySlug = async (slug: string) => {
   const gallery = await prisma.gallery.findFirst({
-    where: { slug, isDeleted: false, isPublished: true },
+    where: { slug, isDeleted: false, isPublished: true, approvalStatus: ApprovalStatus.APPROVED },
     include: { organization: true },
   });
 
@@ -173,6 +190,7 @@ const getGalleryBySlug = async (slug: string) => {
 };
 
 const updateGallery = async (
+  user: IJWTPayload,
   id: string,
   payload: Prisma.GalleryUpdateInput,
 ) => {
@@ -181,7 +199,17 @@ const updateGallery = async (
   });
   if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Gallery not found!");
 
-  const nextPayload = { ...payload };
+  const nextPayload: Prisma.GalleryUpdateInput = {
+    ...payload,
+    ...(user.role === "ADMIN"
+      ? {}
+      : {
+          isPublished: false,
+          approvalStatus: ApprovalStatus.PENDING,
+          reviewedBy: { disconnect: true },
+          reviewedAt: null,
+        }),
+  };
 
   if (typeof nextPayload.slug === "string") {
     nextPayload.slug = toSlug(nextPayload.slug);
@@ -202,6 +230,25 @@ const updateGallery = async (
   return prisma.gallery.update({ where: { id }, data: nextPayload });
 };
 
+const updateGalleryApproval = async (
+  user: IJWTPayload,
+  id: string,
+  approvalStatus: ApprovalStatus,
+) => {
+  const reviewer = await getRequesterDonor(user);
+  const existing = await prisma.gallery.findUnique({ where: { id, isDeleted: false } });
+  if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Gallery not found!");
+  return prisma.gallery.update({
+    where: { id },
+    data: {
+      approvalStatus,
+      isPublished: approvalStatus === ApprovalStatus.APPROVED,
+      reviewedById: reviewer.id,
+      reviewedAt: new Date(),
+    },
+  });
+};
+
 const deleteGallery = async (id: string) => {
   const existing = await prisma.gallery.findUnique({
     where: { id, isDeleted: false },
@@ -220,5 +267,6 @@ export const GalleryService = {
   getSingleGallery,
   getGalleryBySlug,
   updateGallery,
+  updateGalleryApproval,
   deleteGallery,
 };

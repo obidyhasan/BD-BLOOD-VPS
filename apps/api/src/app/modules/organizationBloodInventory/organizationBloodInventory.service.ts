@@ -2,59 +2,12 @@ import httpStatus from "http-status";
 import {
   AccountStatus,
   AvailabilityStatus,
-  OrganizationMemberStatus,
   Prisma,
 } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
-
-const upsertInventory = async (payload: {
-  organizationId: string;
-  bloodGroupId: string;
-  availableUnits: number;
-}) => {
-  const [organization, bloodGroup] = await Promise.all([
-    prisma.organization.findUnique({
-      where: { id: payload.organizationId, isDeleted: false },
-    }),
-    prisma.bloodGroup.findUnique({
-      where: { id: payload.bloodGroupId, isDeleted: false },
-    }),
-  ]);
-  if (!organization) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
-  }
-  if (!bloodGroup) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Blood group not found!");
-  }
-
-  const result = await prisma.organizationBloodInventory.upsert({
-    where: {
-      organizationId_bloodGroupId: {
-        organizationId: payload.organizationId,
-        bloodGroupId: payload.bloodGroupId,
-      },
-    },
-    create: {
-      organizationId: payload.organizationId,
-      bloodGroupId: payload.bloodGroupId,
-      availableUnits: payload.availableUnits,
-      lastUpdated: new Date(),
-    },
-    update: {
-      availableUnits: payload.availableUnits,
-      lastUpdated: new Date(),
-    },
-    include: {
-      organization: true,
-      bloodGroup: true,
-    },
-  });
-
-  return result;
-};
 
 const getAllInventory = async (params: IGenericFilters, options: IOptions) => {
   const { page, limit, skip } = paginationHelper.calculatePagination(options);
@@ -66,19 +19,19 @@ const getAllInventory = async (params: IGenericFilters, options: IOptions) => {
     isDeleted: false,
     accountStatus: AccountStatus.ACTIVE,
     availabilityStatus: AvailabilityStatus.AVAILABLE,
+    isVerified: true,
+    role: "DONOR",
+    OR: [
+      { nextEligibleDonationDate: null },
+      { nextEligibleDonationDate: { lte: new Date() } },
+    ],
     ...(bloodGroupId ? { bloodGroupId } : {}),
     ...(divisionId ? { divisionId } : {}),
     ...(districtId ? { districtId } : {}),
     ...(upazilaId ? { upazilaId } : {}),
     ...(organizationId
       ? {
-          organization: {
-            is: {
-              isDeleted: false,
-              status: OrganizationMemberStatus.ACTIVE,
-              organizationId,
-            },
-          },
+          affiliations: { some: { organizationId, active: true } },
         }
       : {}),
   };
@@ -126,46 +79,14 @@ const getOrganizationInventory = async (organizationId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
   }
 
-  return prisma.organizationBloodInventory.findMany({
-    where: { organizationId, isDeleted: false },
-    include: { bloodGroup: true },
-    orderBy: { lastUpdated: "desc" },
-  });
-};
-
-const updateInventoryItem = async (id: string, availableUnits: number) => {
-  const existing = await prisma.organizationBloodInventory.findUnique({
-    where: { id, isDeleted: false },
-  });
-  if (!existing) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Inventory item not found!");
-  }
-
-  return prisma.organizationBloodInventory.update({
-    where: { id },
-    data: { availableUnits, lastUpdated: new Date() },
-    include: { organization: true, bloodGroup: true },
-  });
-};
-
-const deleteInventoryItem = async (id: string) => {
-  const existing = await prisma.organizationBloodInventory.findUnique({
-    where: { id, isDeleted: false },
-  });
-  if (!existing) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Inventory item not found!");
-  }
-
-  return prisma.organizationBloodInventory.update({
-    where: { id },
-    data: { isDeleted: true, deletedAt: new Date() },
-  });
+  const result = await getAllInventory(
+    { organizationId },
+    { page: 1, limit: 8, sortBy: "groupName", sortOrder: "asc" },
+  );
+  return result.data;
 };
 
 export const OrganizationBloodInventoryService = {
-  upsertInventory,
   getAllInventory,
   getOrganizationInventory,
-  updateInventoryItem,
-  deleteInventoryItem,
 };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EventType, ParticipationType } from "@prisma/client";
+import { ApprovalStatus, EventType, ParticipationType } from "@prisma/client";
 
 export const createEventZodSchema = z.object({
   organizationId: z.string({ message: "Organization ID is required" }).min(1),
@@ -36,4 +36,8 @@ export const updateEventZodSchema = z.object({
 
 export const joinEventZodSchema = z.object({
   participationType: z.nativeEnum(ParticipationType),
+});
+
+export const updateEventApprovalZodSchema = z.object({
+  approvalStatus: z.nativeEnum(ApprovalStatus),
 });

@@ -25,7 +25,6 @@ import { PolicyRoutes } from "../modules/policy/policy.routes";
 import { AuthRouter } from "../modules/auth/auth.routes";
 import { HealthRoutes } from "../modules/health/health.routes";
 import { ContactRoutes } from "../modules/contact/contact.routes";
-import { AppointmentRoutes } from "../modules/appointment/appointment.routes";
 import { AchievementRoutes } from "../modules/achievement/achievement.routes";
 
 const router = Router();
@@ -134,10 +133,6 @@ const moduleRouters = [
   {
     path: "/contact",
     route: ContactRoutes,
-  },
-  {
-    path: "/appointments",
-    route: AppointmentRoutes,
   },
   {
     path: "/achievements",

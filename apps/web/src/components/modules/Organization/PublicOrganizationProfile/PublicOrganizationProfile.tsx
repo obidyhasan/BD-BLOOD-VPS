@@ -11,7 +11,6 @@ import ProfileStats from "./ProfileStats";
 import Link from "next/link";
 import TeamCard from "@/components/modules/Home/OurTeam/TeamCard";
 import RequestBloodDialog from "./RequestBloodDialog";
-import BookAppointmentDialog from "@/components/shared/BookAppointmentDialog/BookAppointmentDialog";
 import {
   ShieldCheck,
   Zap,
@@ -26,6 +25,7 @@ import BloodInventory from "./BloodInventory";
 import { useMemo } from "react";
 import {
   useGetOrganizationBySlugQuery,
+  useGetOrganizationPublicStatsQuery,
   useGetPublicOrganizationMembersQuery,
 } from "@/redux/features/organizations/organizationsApi";
 import { useGetPublicPostsQuery } from "@/redux/features/posts/postsApi";
@@ -74,6 +74,11 @@ const PublicOrganizationProfile = ({
       { skip: !organization?.id },
     );
 
+  const { data: statsData, isLoading: statsLoading } =
+    useGetOrganizationPublicStatsQuery(organization?.id ?? "", {
+      skip: !organization?.id,
+    });
+
   const members = useMemo(
     () =>
       (membersData?.data ?? initialMembers ?? []).map((m) => ({
@@ -101,7 +106,8 @@ const PublicOrganizationProfile = ({
     (orgsLoading && !initialOrganization) ||
     (membersLoading && !initialMembers?.length) ||
     (postsLoading && !initialPosts?.length) ||
-    galleriesLoading;
+    galleriesLoading ||
+    statsLoading;
 
   if (!organization && !orgsLoading && !initialOrganization) {
     return (
@@ -169,13 +175,6 @@ const PublicOrganizationProfile = ({
                 districtId={organization?.districtId}
                 upazilaId={organization?.upazilaId}
               />
-              {organization?.id && (
-                <BookAppointmentDialog
-                  organizationId={organization.id}
-                  organizationName={organization.name}
-                  triggerClassName="w-full sm:w-auto h-14 px-6 rounded-2xl font-black text-xs uppercase "
-                />
-              )}
               <Button
                 variant="outline"
                 className="w-full sm:w-auto h-14 px-6 rounded-2xl border-border/40 font-black text-xs uppercase  flex items-center gap-2"
@@ -226,6 +225,9 @@ const PublicOrganizationProfile = ({
         <ProfileStats
           memberCount={organization?._count?.members ?? members.length}
           workCount={works.length}
+          activeDonors={statsData?.data.activeDonors}
+          requestsFulfilled={statsData?.data.requestsFulfilled}
+          verifiedDonations={statsData?.data.verifiedDonations}
         />
 
         {organization?.id && (

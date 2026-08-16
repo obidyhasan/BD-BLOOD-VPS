@@ -91,6 +91,8 @@ const navItems = [
     icon: Stethoscope,
     items: [
       { title: "Institutions", url: "/dashboard/admin/medical-institutions" },
+      { title: "Doctors", url: "/dashboard/admin/doctors" },
+      { title: "Library", url: "/dashboard/admin/library" },
       { title: "Ads", url: "/dashboard/admin/medical-ads" },
     ],
   },
@@ -102,6 +104,7 @@ const navItems = [
       { title: "Policies", url: "/dashboard/admin/policies" },
       { title: "Notifications", url: "/dashboard/admin/notifications" },
       { title: "Positions", url: "/dashboard/admin/positions" },
+      { title: "Achievements", url: "/dashboard/admin/achievements" },
       { title: "Settings", url: "/dashboard/admin/settings" },
     ],
   },

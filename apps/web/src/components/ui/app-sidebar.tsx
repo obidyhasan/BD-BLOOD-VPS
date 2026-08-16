@@ -91,6 +91,16 @@ const navMain = [
         url: "/dashboard/organization/manage-galleries",
         managerOnly: true,
       },
+      {
+        title: "Blogs",
+        url: "/dashboard/organization/blogs",
+        managerOnly: true,
+      },
+      {
+        title: "Events",
+        url: "/dashboard/organization/events",
+        managerOnly: true,
+      },
     ],
   },
   {
@@ -122,10 +132,6 @@ const navMain = [
       {
         title: "Blood Inventory",
         url: "/dashboard/organization/inventory",
-      },
-      {
-        title: "Appointments",
-        url: "/dashboard/organization/appointments",
       },
       {
         title: "Notifications",

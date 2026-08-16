@@ -20,21 +20,25 @@ test("homepage and organization galleries are isolated and publication-aware", a
   assert.match(routes, /"\/manage"/);
   assert.match(routes, /auth\(Role\.ADMIN, Role\.DONOR\)/);
   assert.match(controller, /assertCanManageGallery/);
-  assert.match(service, /management \? \{\} : \{ isPublished: true \}/);
+  assert.match(
+    service,
+    /management \? \{\} : \{ isPublished: true, approvalStatus: ApprovalStatus\.APPROVED \}/,
+  );
   assert.match(service, /filters\.scope === "homepage"/);
   assert.match(service, /organizationId: filters\.organizationId/);
   assert.match(access, /Only an Admin can manage Homepage Gallery items/);
   assert.match(access, /getActiveMembership\(user\.email, targetOrgId\)/);
 });
 
-test("blog authoring and mutation routes are Admin-only while public reads stay published", async () => {
+test("organization blog authoring is scoped and Admin moderated while public reads stay approved", async () => {
   const routes = await read("src/app/modules/blog/blog.routes.ts");
   const service = await read("src/app/modules/blog/blog.service.ts");
 
-  assert.match(routes, /router\.post\([\s\S]*?auth\(Role\.ADMIN\)/);
-  assert.match(routes, /router\.patch\([\s\S]*?auth\(Role\.ADMIN\)/);
-  assert.match(routes, /router\.delete\("\/:id", auth\(Role\.ADMIN\)/);
-  assert.doesNotMatch(routes, /auth\(Role\.ADMIN, Role\.DONOR\)/);
+  assert.match(routes, /auth\(Role\.ADMIN, Role\.DONOR\)/);
+  assert.match(routes, /"\/manage"/);
+  assert.match(service, /assertCanAccessOrganizationDashboard/);
+  assert.match(service, /organizationId: payload\.organizationId/);
+  assert.match(service, /status: user\.role === "ADMIN" \? existing\.status : BlogStatus\.PENDING/);
   assert.match(service, /status: BlogStatus\.APPROVED/);
 });
 

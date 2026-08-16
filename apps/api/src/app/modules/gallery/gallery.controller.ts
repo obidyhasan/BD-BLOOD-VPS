@@ -16,7 +16,7 @@ const createGallery = catchAsync(
       undefined,
       req.body.organizationId,
     );
-    const result = await GalleryService.createGallery(req.body);
+    const result = await GalleryService.createGallery(req.user as IJWTPayload, req.body);
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
       success: true,
@@ -92,13 +92,24 @@ const getSingleGallery = catchAsync(async (req: Request, res: Response) => {
 const updateGallery = catchAsync(
   async (req: Request & { user?: any }, res: Response) => {
     await assertCanManageGallery(req.user as IJWTPayload, req.params.id);
-    const result = await GalleryService.updateGallery(req.params.id, req.body);
+    const result = await GalleryService.updateGallery(req.user as IJWTPayload, req.params.id, req.body);
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: "Gallery updated successfully!",
       data: result,
     });
+  },
+);
+
+const updateGalleryApproval = catchAsync(
+  async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const result = await GalleryService.updateGalleryApproval(
+      req.user as IJWTPayload,
+      req.params.id,
+      req.body.approvalStatus,
+    );
+    sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Gallery approval updated successfully!", data: result });
   },
 );
 
@@ -122,5 +133,6 @@ export const GalleryController = {
   getGalleryBySlug,
   getSingleGallery,
   updateGallery,
+  updateGalleryApproval,
   deleteGallery,
 };

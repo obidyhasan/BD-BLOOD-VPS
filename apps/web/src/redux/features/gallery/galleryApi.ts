@@ -18,6 +18,7 @@ export interface GalleryItem {
   organizationId: string | null;
   organization?: { id: string; name: string } | null;
   createdAt: string;
+  approvalStatus?: "PENDING" | "APPROVED" | "REJECTED";
 }
 
 export const galleryApi = baseApi.injectEndpoints({
@@ -106,6 +107,14 @@ export const galleryApi = baseApi.injectEndpoints({
       invalidatesTags: ["Gallery"],
     }),
 
+    updateGalleryApproval: builder.mutation<
+      { success: boolean; data: GalleryItem },
+      { id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" }
+    >({
+      query: ({ id, approvalStatus }) => ({ url: `/galleries/admin/${id}/approval`, method: "PATCH", body: { approvalStatus } }),
+      invalidatesTags: ["Gallery"],
+    }),
+
     deleteGallery: builder.mutation<
       { success: boolean; message: string },
       string
@@ -123,5 +132,6 @@ export const {
   useGetGalleryBySlugQuery,
   useCreateGalleryMutation,
   useUpdateGalleryMutation,
+  useUpdateGalleryApprovalMutation,
   useDeleteGalleryMutation,
 } = galleryApi;

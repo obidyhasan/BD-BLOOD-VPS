@@ -27,6 +27,7 @@ export interface Event {
   locationDetails?: string | null;
   _count?: { participants: number };
   createdAt: string;
+  approvalStatus?: "PENDING" | "APPROVED" | "REJECTED";
 }
 
 export interface EventParticipant {
@@ -71,6 +72,36 @@ export const eventsApi = baseApi.injectEndpoints({
         return { url: `/events${qs ? `?${qs}` : ""}` };
       },
       providesTags: ["Events"],
+    }),
+
+    getManagedEvents: builder.query<
+      { success: boolean; meta: object; data: Event[] },
+      EventQueryParams & { organizationId: string }
+    >({
+      query: (params) => {
+        const qp = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => value != null && qp.set(key, String(value)));
+        return { url: `/events/manage?${qp.toString()}` };
+      },
+      providesTags: ["Events"],
+    }),
+
+    getAdminEvents: builder.query<{ success: boolean; meta: object; data: Event[] }, EventQueryParams | void>({
+      query: (params) => {
+        const qp = new URLSearchParams();
+        if (params) Object.entries(params).forEach(([key, value]) => value != null && qp.set(key, String(value)));
+        const qs = qp.toString();
+        return { url: `/events/admin/all${qs ? `?${qs}` : ""}` };
+      },
+      providesTags: ["Events"],
+    }),
+
+    updateEventApproval: builder.mutation<
+      { success: boolean; data: Event },
+      { id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" }
+    >({
+      query: ({ id, approvalStatus }) => ({ url: `/events/admin/${id}/approval`, method: "PATCH", body: { approvalStatus } }),
+      invalidatesTags: ["Events"],
     }),
 
     getSingleEvent: builder.query<{ success: boolean; data: Event }, string>({
@@ -151,6 +182,9 @@ export const eventsApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllEventsQuery,
+  useGetManagedEventsQuery,
+  useGetAdminEventsQuery,
+  useUpdateEventApprovalMutation,
   useGetSingleEventQuery,
   useGetEventBySlugQuery,
   useCreateEventMutation,

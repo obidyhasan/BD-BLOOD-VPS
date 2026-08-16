@@ -6,6 +6,7 @@ import { GalleryController } from "./gallery.controller";
 import {
   createGalleryZodSchema,
   updateGalleryZodSchema,
+  updateGalleryApprovalZodSchema,
 } from "./gallery.validation";
 
 const router = Router();
@@ -30,6 +31,12 @@ router.patch(
   auth(Role.ADMIN, Role.DONOR),
   validateRequest(updateGalleryZodSchema),
   GalleryController.updateGallery,
+);
+router.patch(
+  "/admin/:id/approval",
+  auth(Role.ADMIN),
+  validateRequest(updateGalleryApprovalZodSchema),
+  GalleryController.updateGalleryApproval,
 );
 router.delete(
   "/:id",

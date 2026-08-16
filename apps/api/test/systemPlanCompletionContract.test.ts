@@ -23,13 +23,12 @@ test("canonical organization hierarchy and affiliation APIs are separate from go
   assert.doesNotMatch(donorPage, /useGetPublicDonorsQuery/);
 });
 
-test("public organization UI renders canonical hierarchy and strict Upazila resolution", async () => {
+test("public organization UI uses location directory and strict Upazila resolution without exposing internal hierarchy", async () => {
   const page = await read("../web/src/components/modules/Organization/AllOrganization/AllOrganization.tsx");
-  assert.match(page, /useGetOrganizationTreeQuery/);
   assert.match(page, /useLazyGetCanonicalOrganizationByUpazilaQuery/);
-  assert.match(page, /HierarchyNode/);
-  assert.match(page, /donorAffiliations/);
-  assert.match(page, /governance/);
+  assert.match(page, /buildLocationOrgQueryParams/);
+  assert.doesNotMatch(page, /useGetOrganizationTreeQuery/);
+  assert.doesNotMatch(page, /HierarchyNode/);
 });
 
 test("donor withdrawal is row locked and reopens donor-found requests", async () => {

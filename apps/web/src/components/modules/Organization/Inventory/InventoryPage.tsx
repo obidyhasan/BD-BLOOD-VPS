@@ -24,11 +24,9 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Edit2,
   Loader2,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { UpdateInventoryModal } from "./UpdateInventoryModal";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -140,33 +138,8 @@ const InventoryPage = () => {
           </Badge>
         ),
       },
-      {
-        id: "actions",
-        header: () => <div className="text-right">Actions</div>,
-        cell: ({ row }) =>
-          organizationId ? (
-            <div className="flex items-center justify-end gap-2">
-              <UpdateInventoryModal
-                organizationId={organizationId}
-                bloodGroupId={row.original.bloodGroupId}
-                inventoryItemId={row.original.id}
-                group={row.original.group}
-                currentUnits={row.original.units}
-                trigger={
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="size-10 rounded-xl border-border/40 hover:bg-primary hover:text-white transition-all"
-                  >
-                    <Edit2 className="size-4" />
-                  </Button>
-                }
-              />
-            </div>
-          ) : null,
-      },
     ],
-    [organizationId],
+    [],
   );
 
   const filteredData = useMemo(() => {
@@ -210,8 +183,8 @@ const InventoryPage = () => {
         <DashboardHeader
           variant="clinical"
           title="Blood Inventory"
-          subtitle="Track and manage available blood units by group."
-          badge="Stock Management"
+          subtitle="Eligible active donors, grouped by blood type in real time."
+          badge="Donor Availability"
         />
       </div>
 

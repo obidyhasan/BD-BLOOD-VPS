@@ -7,6 +7,8 @@ export interface BlogType {
   content: string;
   coverImage?: string | null;
   authorId: string;
+  organizationId?: string | null;
+  organization?: { id: string; name: string } | null;
   author?: {
     id: string;
     fullName: string;
@@ -87,6 +89,15 @@ export const blogsApi = baseApi.injectEndpoints({
       providesTags: ["Blogs"],
     }),
 
+    getManagedBlogs: builder.query<PaginatedBlogs, BlogQueryParams & { organizationId: string }>({
+      query: (params) => {
+        const qp = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => value != null && qp.set(key, String(value)));
+        return { url: `/blogs/manage?${qp.toString()}` };
+      },
+      providesTags: ["Blogs"],
+    }),
+
     getAdminBlogById: builder.query<
       { success: boolean; data: BlogType },
       string
@@ -97,7 +108,7 @@ export const blogsApi = baseApi.injectEndpoints({
 
     createBlog: builder.mutation<
       { success: boolean; data: BlogType },
-      { title: string; content: string; coverImage?: string }
+      { title: string; content: string; coverImage?: string; organizationId?: string }
     >({
       query: (data) => ({ url: "/blogs", method: "POST", body: data }),
       invalidatesTags: ["Blogs"],
@@ -148,6 +159,7 @@ export const {
   useGetPublicBlogByIdQuery,
   useGetPublicBlogBySlugQuery,
   useGetAdminBlogsQuery,
+  useGetManagedBlogsQuery,
   useGetAdminBlogByIdQuery,
   useCreateBlogMutation,
   useUpdateBlogMutation,

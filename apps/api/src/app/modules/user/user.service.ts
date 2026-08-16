@@ -287,6 +287,7 @@ const getMyProfile = async (user: IJWTPayload) => {
       organization: {
         include: { position: { select: { level: true } } },
       },
+      _count: { select: { referredDonors: true } },
     },
   });
 
@@ -313,8 +314,11 @@ const getMyProfile = async (user: IJWTPayload) => {
   );
   capabilities.canCreateDonationPost = false;
 
+  const { _count, ...profile } = profileInfo;
+
   return {
-    ...profileInfo,
+    ...profile,
+    referralCount: _count.referredDonors,
     profileStatus: readiness.status,
     missingProfileFields: readiness.missingFields,
     emailVerified: profileInfo.isVerified,

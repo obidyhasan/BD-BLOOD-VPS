@@ -51,7 +51,6 @@ const navItems = [
     icon: Droplets,
     items: [
       { title: "My Donations", url: "/dashboard/donor/donations" },
-      { title: "Appointments", url: "/dashboard/donor/appointments" },
     ],
   },
   {

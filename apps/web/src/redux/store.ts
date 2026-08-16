@@ -23,7 +23,6 @@ import "./features/inventory/inventoryApi";
 import "./features/reports/reportsApi";
 import "./features/bloodRequestNotifications/bloodRequestNotificationsApi";
 import "./features/contact/contactApi";
-import "./features/appointments/appointmentsApi";
 
 export const store = configureStore({
   reducer: {

@@ -15,6 +15,8 @@ import {
   ChevronRight,
   AlertCircle,
   Edit3,
+  Check,
+  X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,6 +43,7 @@ import {
 import {
   useGetManagedGalleriesQuery,
   useDeleteGalleryMutation,
+  useUpdateGalleryApprovalMutation,
 } from "@/redux/features/gallery/galleryApi";
 import { mapGalleryItemToAsset } from "@/lib/gallery";
 import { format } from "date-fns";
@@ -63,9 +66,10 @@ export default function AdminGalleryPage() {
 
   const { data, isLoading } = useGetManagedGalleriesQuery({
     limit: 200,
-    scope: "homepage",
   });
   const [deleteGallery] = useDeleteGalleryMutation();
+  const [updateApproval, { isLoading: isReviewing }] =
+    useUpdateGalleryApprovalMutation();
 
   const assets = data?.data ?? [];
 
@@ -100,6 +104,18 @@ export default function AdminGalleryPage() {
       toast.error("Failed to delete");
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const reviewGallery = async (
+    id: string,
+    approvalStatus: "APPROVED" | "REJECTED",
+  ) => {
+    try {
+      await updateApproval({ id, approvalStatus }).unwrap();
+      toast.success(`Gallery ${approvalStatus.toLowerCase()}`);
+    } catch {
+      toast.error("Failed to update gallery approval");
     }
   };
 
@@ -282,12 +298,42 @@ export default function AdminGalleryPage() {
               </div>
 
               <div className="mt-3 px-1">
-                <p className="font-black text-sm tracking-tight truncate">
-                  {asset.title}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-black text-sm tracking-tight truncate">
+                    {asset.title}
+                  </p>
+                  <Badge variant="outline" className="text-[8px]">
+                    {asset.approvalStatus ?? "APPROVED"}
+                  </Badge>
+                </div>
                 <p className="text-[10px] font-bold text-muted-foreground opacity-40 uppercase">
                   {asset.images.length} photos
                 </p>
+                {asset.approvalStatus === "PENDING" && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Button
+                      size="sm"
+                      disabled={isReviewing}
+                      onClick={() =>
+                        void reviewGallery(asset.id, "APPROVED")
+                      }
+                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      <Check className="mr-1 size-3" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={isReviewing}
+                      variant="destructive"
+                      onClick={() =>
+                        void reviewGallery(asset.id, "REJECTED")
+                      }
+                      className="rounded-xl"
+                    >
+                      <X className="mr-1 size-3" /> Reject
+                    </Button>
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}

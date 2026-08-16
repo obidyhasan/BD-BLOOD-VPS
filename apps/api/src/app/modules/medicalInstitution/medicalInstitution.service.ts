@@ -5,6 +5,7 @@ import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { isUuid, toSlug } from "../../shared/slugHelper";
+import { assertGeographicHierarchy } from "../../shared/geographicHierarchy";
 
 const uniqueInstitutionSlug = async (name: string, excludeId?: string) => {
   let base = toSlug(name) || "institution";
@@ -24,6 +25,12 @@ const uniqueInstitutionSlug = async (name: string, excludeId?: string) => {
 };
 
 const createInstitution = async (payload: any) => {
+  await assertGeographicHierarchy(
+    prisma,
+    payload.divisionId,
+    payload.districtId,
+    payload.upazilaId,
+  );
   const slug = payload.slug || (await uniqueInstitutionSlug(payload.name));
 
   return prisma.medicalInstitution.create({
@@ -52,6 +59,15 @@ const getAllInstitutions = async (params: IGenericFilters, options: IOptions) =>
     ...((params as Record<string, string | undefined>).districtId ? { districtId: (params as Record<string, string | undefined>).districtId } : {}),
     ...((params as Record<string, string | undefined>).divisionId ? { divisionId: (params as Record<string, string | undefined>).divisionId } : {}),
     ...((params as Record<string, string | undefined>).upazilaId ? { upazilaId: (params as Record<string, string | undefined>).upazilaId } : {}),
+    ...((params as Record<string, string | undefined>).searchTerm
+      ? {
+          OR: [
+            { name: { contains: (params as Record<string, string>).searchTerm, mode: "insensitive" } },
+            { type: { contains: (params as Record<string, string>).searchTerm, mode: "insensitive" } },
+            { address: { contains: (params as Record<string, string>).searchTerm, mode: "insensitive" } },
+          ],
+        }
+      : {}),
   };
 
   const [result, total] = await Promise.all([
@@ -60,6 +76,7 @@ const getAllInstitutions = async (params: IGenericFilters, options: IOptions) =>
       take: limit,
       where: whereConditions,
       orderBy: { [sortBy]: sortOrder },
+      include: { division: true, district: true, upazila: true },
     }),
     prisma.medicalInstitution.count({
       where: whereConditions,
@@ -113,6 +130,14 @@ const updateInstitution = async (
   });
   if (!existing)
     throw new ApiError(httpStatus.NOT_FOUND, "Medical institution not found!");
+
+  const scalar = payload as Prisma.MedicalInstitutionUncheckedUpdateInput;
+  await assertGeographicHierarchy(
+    prisma,
+    typeof scalar.divisionId === "string" ? scalar.divisionId : existing.divisionId,
+    typeof scalar.districtId === "string" ? scalar.districtId : existing.districtId,
+    typeof scalar.upazilaId === "string" ? scalar.upazilaId : existing.upazilaId,
+  );
 
   return prisma.medicalInstitution.update({ where: { id }, data: payload });
 };

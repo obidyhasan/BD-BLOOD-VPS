@@ -16,7 +16,6 @@ import {
   useGetAllMedicalInfosQuery,
 } from "@/redux/features/medicalInstitutions/medicalInstitutionsApi";
 import { mapInstitutionToUI } from "@/lib/medical";
-import { useLocationCascade } from "@/hooks/useLocationCascade";
 
 import type { MedicalInstitution } from "@/redux/features/medicalInstitutions/medicalInstitutionsApi";
 
@@ -31,45 +30,42 @@ const MedicalPage = ({
   initialDoctors,
   initialMedicalInfos,
 }: MedicalPageProps) => {
+  const [divisionId, setDivisionId] = useState<string>();
+  const [districtId, setDistrictId] = useState<string>();
+  const [upazilaId, setUpazilaId] = useState<string>();
+  const hasLocationFilter = Boolean(divisionId || districtId || upazilaId);
+  const locationQuery = { limit: 100, divisionId, districtId, upazilaId };
   const { data, isLoading: loading } = useGetAllInstitutionsQuery(
-    { limit: 100 },
-    { skip: !!initialInstitutions?.length },
+    locationQuery,
+    { skip: !!initialInstitutions?.length && !hasLocationFilter },
   );
   const { data: doctorsData, isLoading: doctorsLoading } =
-    useGetAllDoctorsQuery(undefined, { skip: !!initialDoctors?.length });
+    useGetAllDoctorsQuery(locationQuery, { skip: !!initialDoctors?.length && !hasLocationFilter });
   const { data: infosData, isLoading: infosLoading } =
-    useGetAllMedicalInfosQuery({ status: "PUBLISHED" }, {
-      skip: !!initialMedicalInfos?.length,
+    useGetAllMedicalInfosQuery(locationQuery, {
+      skip: !!initialMedicalInfos?.length && !hasLocationFilter,
     });
 
   const institutions = useMemo(
-    () => (initialInstitutions ?? data?.data ?? []).map(mapInstitutionToUI),
-    [initialInstitutions, data],
+    () => (hasLocationFilter ? data?.data ?? [] : initialInstitutions ?? data?.data ?? []).map(mapInstitutionToUI),
+    [data, hasLocationFilter, initialInstitutions],
   );
-  const doctors = (initialDoctors ?? doctorsData?.data ?? []) as NonNullable<typeof doctorsData>["data"];
-  const medicalInfos = (initialMedicalInfos ?? infosData?.data ?? []) as NonNullable<typeof infosData>["data"];
+  const doctors = (hasLocationFilter ? doctorsData?.data ?? [] : initialDoctors ?? doctorsData?.data ?? []) as NonNullable<typeof doctorsData>["data"];
+  const medicalInfos = (hasLocationFilter ? infosData?.data ?? [] : initialMedicalInfos ?? infosData?.data ?? []) as NonNullable<typeof infosData>["data"];
   const pageLoading = !initialInstitutions?.length && loading;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(9);
   const [activeTab, setActiveTab] = useState("institutions");
-  const [divisionId, setDivisionId] = useState<string>();
-  const [districtId, setDistrictId] = useState<string>();
-  const { districts } = useLocationCascade(divisionId, districtId);
-  const selectedDistrictName = districts.find((d) => d.id === districtId)?.name;
-
   const filteredInstitutions = useMemo(() => {
     return institutions.filter((i) => {
       const matchesSearch =
         i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         i.type.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesDistrict =
-        !selectedDistrictName ||
-        i.district.toLowerCase() === selectedDistrictName.toLowerCase();
-      return matchesSearch && matchesDistrict;
+      return matchesSearch;
     });
-  }, [institutions, searchQuery, selectedDistrictName]);
+  }, [institutions, searchQuery]);
 
   const filteredDoctors = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -126,6 +122,8 @@ const MedicalPage = ({
             setDivisionId={setDivisionId}
             districtId={districtId}
             setDistrictId={setDistrictId}
+            upazilaId={upazilaId}
+            setUpazilaId={setUpazilaId}
           />
         </div>
 

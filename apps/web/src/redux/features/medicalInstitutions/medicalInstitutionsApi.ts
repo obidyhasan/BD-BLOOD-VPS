@@ -74,7 +74,9 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
         page?: number;
         limit?: number;
         searchTerm?: string;
+        divisionId?: string;
         districtId?: string;
+        upazilaId?: string;
       } | void
     >({
       query: (params) => {
@@ -146,7 +148,7 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
     // Doctors
     getAllDoctors: builder.query<
       { success: boolean; data: Doctor[] },
-      { institutionId?: string } | void
+      { institutionId?: string; searchTerm?: string; divisionId?: string; districtId?: string; upazilaId?: string; limit?: number } | void
     >({
       query: (params) => {
         const qp = new URLSearchParams();
@@ -169,6 +171,14 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
       invalidatesTags: ["Doctors", "MedicalInstitutions"],
     }),
 
+    updateDoctor: builder.mutation<
+      { success: boolean; data: Doctor },
+      { id: string; data: Partial<Doctor> }
+    >({
+      query: ({ id, data }) => ({ url: `/doctors/${id}`, method: "PATCH", body: data }),
+      invalidatesTags: ["Doctors", "MedicalInstitutions"],
+    }),
+
     deleteDoctor: builder.mutation<
       { success: boolean; message: string },
       string
@@ -180,7 +190,7 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
     // Medical informations
     getAllMedicalInfos: builder.query<
       { success: boolean; data: MedicalInfo[] },
-      { institutionId?: string; status?: string } | void
+      { institutionId?: string; status?: string; searchTerm?: string; divisionId?: string; districtId?: string; upazilaId?: string; limit?: number } | void
     >({
       query: (params) => {
         const qp = new URLSearchParams();
@@ -197,13 +207,34 @@ export const medicalInstitutionsApi = baseApi.injectEndpoints({
 
     createMedicalInfo: builder.mutation<
       { success: boolean; data: MedicalInfo },
-      Omit<MedicalInfo, "id" | "createdAt">
+      Omit<MedicalInfo, "id" | "createdAt" | "createdBy">
     >({
       query: (data) => ({
         url: "/medical-informations",
         method: "POST",
         body: data,
       }),
+      invalidatesTags: ["MedicalInfos"],
+    }),
+
+    getAdminMedicalInfos: builder.query<
+      { success: boolean; data: MedicalInfo[] },
+      { institutionId?: string; status?: string; limit?: number } | void
+    >({
+      query: (params) => {
+        const qp = new URLSearchParams();
+        if (params) Object.entries(params).forEach(([key, value]) => value != null && qp.set(key, String(value)));
+        const qs = qp.toString();
+        return { url: `/medical-informations/admin/all${qs ? `?${qs}` : ""}` };
+      },
+      providesTags: ["MedicalInfos"],
+    }),
+
+    updateMedicalInfo: builder.mutation<
+      { success: boolean; data: MedicalInfo },
+      { id: string; data: Partial<MedicalInfo> }
+    >({
+      query: ({ id, data }) => ({ url: `/medical-informations/${id}`, method: "PATCH", body: data }),
       invalidatesTags: ["MedicalInfos"],
     }),
 
@@ -284,9 +315,12 @@ export const {
   useDeleteInstitutionMutation,
   useGetAllDoctorsQuery,
   useCreateDoctorMutation,
+  useUpdateDoctorMutation,
   useDeleteDoctorMutation,
   useGetAllMedicalInfosQuery,
   useCreateMedicalInfoMutation,
+  useGetAdminMedicalInfosQuery,
+  useUpdateMedicalInfoMutation,
   useDeleteMedicalInfoMutation,
   useGetPublicAdsQuery,
   useGetAdminAdsQuery,

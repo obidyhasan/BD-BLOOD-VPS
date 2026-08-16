@@ -188,6 +188,21 @@ export const organizationsApi = baseApi.injectEndpoints({
       providesTags: (_, __, id) => [{ type: "Organizations", id }],
     }),
 
+    getOrganizationPublicStats: builder.query<
+      {
+        success: boolean;
+        data: {
+          activeDonors: number;
+          requestsFulfilled: number;
+          verifiedDonations: number;
+        };
+      },
+      string
+    >({
+      query: (id) => ({ url: `/organizations/${id}/public-stats` }),
+      providesTags: (_, __, id) => [{ type: "Organizations", id }],
+    }),
+
     getOrganizationBySlug: builder.query<
       { success: boolean; data: Organization },
       string
@@ -412,6 +427,7 @@ export const {
   useLazyGetCanonicalOrganizationByUpazilaQuery,
   useGetAffiliatedDonorsQuery,
   useGetSingleOrganizationQuery,
+  useGetOrganizationPublicStatsQuery,
   useGetOrganizationBySlugQuery,
   useCreateOrganizationMutation,
   useUpdateOrganizationMutation,

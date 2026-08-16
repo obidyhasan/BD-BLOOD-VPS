@@ -44,6 +44,7 @@ router.get(
   orgMemberAccess("params"),
   OrganizationController.getAffiliatedDonors,
 );
+router.get("/:id/public-stats", OrganizationController.getPublicStats);
 router.get("/:id", OrganizationController.getSingleOrganization);
 
 router.patch(

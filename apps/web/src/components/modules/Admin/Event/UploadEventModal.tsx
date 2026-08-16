@@ -77,12 +77,14 @@ const eventTypeLabels: Record<string, string> = {
 
 interface UploadEventModalProps {
   event?: Event;
+  organizationId?: string;
   trigger?: React.ReactNode;
   onSuccess?: () => void;
 }
 
 const UploadEventModal = ({
   event,
+  organizationId,
   trigger,
   onSuccess,
 }: UploadEventModalProps) => {
@@ -110,7 +112,7 @@ const UploadEventModal = ({
       eventTime: "",
       slots: "",
       locationDetails: "",
-      organizationId: "",
+      organizationId: organizationId ?? "",
       divisionId: "",
       districtId: "",
       upazilaId: "",
@@ -130,6 +132,16 @@ const UploadEventModal = ({
     });
 
   const organizations = organizationsData?.data ?? [];
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const organization = organizations.find((item) => item.id === organizationId);
+    if (!organization) return;
+    form.setValue("organizationId", organizationId);
+    form.setValue("divisionId", organization.divisionId);
+    form.setValue("districtId", organization.districtId);
+    form.setValue("upazilaId", organization.upazilaId);
+  }, [form, organizationId, organizations]);
   const divisions = divisionsData?.data ?? [];
   const districts = districtsData?.data ?? [];
   const upazilas = upazilasData?.data ?? [];
@@ -158,13 +170,13 @@ const UploadEventModal = ({
         eventTime: "",
         slots: "",
         locationDetails: "",
-        organizationId: "",
+        organizationId: organizationId ?? "",
         divisionId: "",
         districtId: "",
         upazilaId: "",
       });
     }
-  }, [open, event, form]);
+  }, [open, event, form, organizationId]);
 
   const onSubmit = async (data: z.infer<typeof eventSchema>) => {
     try {
@@ -373,7 +385,7 @@ const UploadEventModal = ({
                     </FormLabel>
                     <Select
                       value={field.value}
-                      disabled={organizationsLoading}
+                      disabled={organizationsLoading || Boolean(organizationId)}
                       onValueChange={(value) => {
                         field.onChange(value);
                         const organization = organizations.find(

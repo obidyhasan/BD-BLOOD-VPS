@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ApprovalStatus } from "@prisma/client";
 
 export const createGalleryZodSchema = z.object({
   title: z.string({ message: "Title is required" }).min(1),
@@ -25,4 +26,8 @@ export const updateGalleryZodSchema = z.object({
   isPublished: z.boolean().optional(),
   isFeatured: z.boolean().optional(),
   sortOrder: z.number().int().nonnegative().optional(),
+});
+
+export const updateGalleryApprovalZodSchema = z.object({
+  approvalStatus: z.nativeEnum(ApprovalStatus),
 });
