@@ -147,7 +147,7 @@ export default function DonorSettingsPage() {
                   </Label>
                   <Switch
                     checked={notifyInApp}
-                    disabled={true}
+                    disabled={isSaving}
                     onCheckedChange={(v) => void handleToggle("notifyInApp", v)}
                   />
                 </div>
@@ -157,7 +157,7 @@ export default function DonorSettingsPage() {
                   </Label>
                   <Switch
                     checked={notifySms}
-                    disabled={true}
+                    disabled={isSaving}
                     onCheckedChange={(v) => void handleToggle("notifySms", v)}
                   />
                 </div>
@@ -167,7 +167,7 @@ export default function DonorSettingsPage() {
                   </Label>
                   <Switch
                     checked={notifyEmail}
-                    disabled={true}
+                    disabled={isSaving}
                     onCheckedChange={(v) => void handleToggle("notifyEmail", v)}
                   />
                 </div>

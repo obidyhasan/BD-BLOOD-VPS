@@ -32,7 +32,6 @@ export const updateUserZodSchema = z.object({
   profilePhoto: z.string().url().optional(),
   bio: z.string().optional(),
   accountStatus: z.nativeEnum(AccountStatus).optional(),
-  referrerId: z.string().optional(),
   notifyInApp: z.boolean().optional(),
   notifySms: z.boolean().optional(),
   notifyEmail: z.boolean().optional(),

@@ -149,6 +149,9 @@ const DonorProfile = ({
 
   const profilePhotoSrc = resolveProfilePhoto(donor?.profilePhoto);
   const donorInitial = donor?.fullName?.trim().charAt(0).toUpperCase() || "D";
+  const profileCompletion = isDashboard
+    ? Math.max(0, Math.min(100, meData?.data?.profileCompletionPercentage ?? 0))
+    : 0;
 
   if (!isDashboard && slug && donorLoading && !initialDonor) {
     return (
@@ -170,6 +173,28 @@ const DonorProfile = ({
           <div className="flex flex-col lg:flex-row gap-8 lg:items-start justify-between">
             <div className="flex flex-col md:flex-row gap-8 items-center md:items-end">
               <div className="relative group">
+                {isDashboard && (
+                  <svg
+                    className="absolute -inset-2 size-36 -rotate-90 md:size-44"
+                    viewBox="0 0 100 100"
+                    role="img"
+                    aria-label={`Profile ${profileCompletion}% complete`}
+                  >
+                    <circle cx="50" cy="50" r="47" fill="none" stroke="currentColor" strokeWidth="3" className="text-border/50" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="47"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      pathLength="100"
+                      strokeDasharray={`${profileCompletion} 100`}
+                      className="text-primary transition-all duration-500"
+                    />
+                  </svg>
+                )}
                 <div className="relative size-32 md:size-40 rounded-full border-4 border-background overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-500">
                   {profilePhotoSrc ? (
                     <Image
@@ -188,6 +213,11 @@ const DonorProfile = ({
                     </div>
                   )}
                 </div>
+                {isDashboard && (
+                  <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background px-2 py-0.5 text-[10px] font-black text-primary shadow-sm" aria-hidden="true">
+                    {profileCompletion}%
+                  </span>
+                )}
                 <div className="absolute -bottom-2 -right-2 size-12 rounded-2xl bg-primary text-white flex flex-col items-center justify-center border-4 border-background shadow-xl">
                   <Droplets className="size-4 fill-current mb-0.5" />
                   <span className="text-[10px] font-black leading-none uppercase">

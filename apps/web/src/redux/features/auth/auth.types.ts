@@ -25,6 +25,7 @@ export interface User {
   profileStatus?: "INCOMPLETE" | "COMPLETE";
   profileCompletedAt?: string | null;
   missingProfileFields?: string[];
+  profileCompletionPercentage?: number;
   affiliation?: {
     organizationId?: string;
     upazilaId?: string;

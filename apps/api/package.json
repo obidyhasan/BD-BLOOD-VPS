@@ -28,6 +28,8 @@
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "seed": "tsx src/app/seed/seed.ts",
+    "seed:demo": "tsx src/app/seed/demoSeed.ts --confirm-bd-blood-demo-seed",
+    "verify:demo": "tsx src/app/seed/demoSeedVerify.ts",
     "typecheck": "tsc --noEmit",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status"

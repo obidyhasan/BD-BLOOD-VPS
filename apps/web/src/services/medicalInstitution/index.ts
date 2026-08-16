@@ -189,6 +189,15 @@ export const getMedicalInfosByInstitution = async (institutionId: string) => {
   }
 };
 
+export const getPublicMedicalInfo = async (id: string) => {
+  try {
+    const res = await serverFetch.get(`/medical-informations/${id}`);
+    return res.json();
+  } catch {
+    return { success: false, data: null };
+  }
+};
+
 export const createMedicalInfo = async (data: Record<string, unknown>) => {
   try {
     const res = await serverFetch.post("/medical-informations", {

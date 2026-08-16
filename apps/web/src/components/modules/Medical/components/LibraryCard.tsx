@@ -35,7 +35,7 @@ export function LibraryCard({ info, index }: { info: MedicalInfo; index: number 
             {info.summary}
           </p>
           <Link
-            href={`/medical/${info.slug}`}
+            href={`/medical/library/${info.slug}`}
             className="flex items-center gap-2 text-primary font-black text-xs uppercase  hover:translate-x-2 transition-transform"
           >
             Read Guidelines <ArrowRight className="size-4" />

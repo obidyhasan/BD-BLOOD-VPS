@@ -4,6 +4,9 @@ export type ProfileFacts = {
   fullName?: string | null;
   phone?: string | null;
   emailVerified: boolean;
+  phoneVerified: boolean;
+  profilePhoto?: string | null;
+  bio?: string | null;
   bloodGroupId?: string | null;
   divisionId?: string | null;
   districtId?: string | null;
@@ -19,6 +22,7 @@ export type ProfileReadiness = {
   status: DonorProfileStatus;
   completedAt: Date | null;
   missingFields: string[];
+  completionPercentage: number;
 };
 
 export type DonorCapabilities = {
@@ -35,6 +39,9 @@ export const getMissingProfileFields = (facts: ProfileFacts): string[] => {
   if (!facts.fullName?.trim()) missing.push("fullName");
   if (!facts.phone?.trim()) missing.push("phone");
   if (!facts.emailVerified) missing.push("emailVerified");
+  if (!facts.phoneVerified) missing.push("phoneVerified");
+  if (!facts.profilePhoto?.trim()) missing.push("profilePhoto");
+  if (!facts.bio?.trim()) missing.push("bio");
   if (!facts.bloodGroupId) missing.push("bloodGroupId");
   if (!facts.divisionId) missing.push("divisionId");
   if (!facts.districtId) missing.push("districtId");
@@ -58,11 +65,16 @@ export const calculateProfileReadiness = (
 ): ProfileReadiness => {
   const missingFields = getMissingProfileFields(facts);
   const complete = missingFields.length === 0;
+  const requiredFieldCount = 12;
+  const completionPercentage = Math.round(
+    ((requiredFieldCount - missingFields.length) / requiredFieldCount) * 100,
+  );
 
   return {
     status: complete ? DonorProfileStatus.COMPLETE : DonorProfileStatus.INCOMPLETE,
     completedAt: complete ? now : null,
     missingFields,
+    completionPercentage: Math.max(0, Math.min(100, completionPercentage)),
   };
 };
 
@@ -77,6 +89,7 @@ export const calculateDonorCapabilities = (
   const operationallyReady =
     readiness.status === DonorProfileStatus.COMPLETE &&
     facts.emailVerified &&
+    facts.phoneVerified &&
     facts.accountActive;
 
   return {

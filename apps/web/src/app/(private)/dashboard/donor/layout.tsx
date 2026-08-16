@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ProfileCompletionGate } from "@/components/modules/Donor/Profile/ProfileCompletionGate";
+import { useNotificationSocket } from "@/hooks/useNotificationSocket";
+import { useGetMyNotificationsQuery } from "@/redux/features/notifications/notificationsApi";
 
 const routeNames: Record<string, string> = {
   "/dashboard/donor": "My Profile",
@@ -35,6 +37,9 @@ export default function DonorLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  useNotificationSocket();
+  const { data: unreadData } = useGetMyNotificationsQuery({ isRead: false, limit: 1 });
+  const unreadCount = unreadData?.meta.total ?? 0;
   const currentRouteName =
     routeNames[pathname] ??
     (pathname.startsWith("/dashboard/donor/posts/") ? "Post Preview" : "My Profile");
@@ -82,7 +87,11 @@ export default function DonorLayout({
                     className="size-11 rounded-2xl border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 relative"
                   >
                     <Bell className="size-5" />
-                    <span className="absolute top-2 right-2 size-2 bg-primary rounded-full ring-2 ring-white dark:ring-zinc-950" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black leading-5 text-primary-foreground ring-2 ring-white dark:ring-zinc-950">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Button>
                 </Link>
               </div>

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,7 @@ const editProfileSchema = z.object({
   divisionId: z.string().min(1, "Division is required"),
   districtId: z.string().min(1, "District is required"),
   upazilaId: z.string().min(1, "Upazila is required"),
+  bio: z.string().min(10, "Tell the community a little about your donor journey"),
   available: z.boolean(),
 });
 
@@ -61,6 +63,7 @@ const emptyValues: EditProfileValues = {
   divisionId: "",
   districtId: "",
   upazilaId: "",
+  bio: "",
   available: true,
 };
 
@@ -87,6 +90,7 @@ const EditProfileForm = ({ dialogOpen = true }: { dialogOpen?: boolean }) => {
       divisionId: String(me.divisionId ?? ""),
       districtId: String(me.districtId ?? ""),
       upazilaId: String(me.upazilaId ?? ""),
+      bio: me.bio ?? "",
       available: me.availabilityStatus === "AVAILABLE",
     };
   }, [me]);
@@ -149,6 +153,7 @@ const EditProfileForm = ({ dialogOpen = true }: { dialogOpen?: boolean }) => {
       formData.append("divisionId", data.divisionId);
       formData.append("districtId", data.districtId);
       formData.append("upazilaId", data.upazilaId);
+      formData.append("bio", data.bio);
       formData.append(
         "availabilityStatus",
         data.available ? "AVAILABLE" : "UNAVAILABLE",
@@ -284,6 +289,26 @@ const EditProfileForm = ({ dialogOpen = true }: { dialogOpen?: boolean }) => {
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="bio"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
+                Donor Biography
+              </FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Share a short note about your donor journey"
+                  className="min-h-28 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border-border/40 focus:ring-primary/20 font-medium"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

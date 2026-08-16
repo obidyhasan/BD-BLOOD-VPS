@@ -36,10 +36,16 @@ export const notificationsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     // Authenticated user's own notifications
     getMyNotifications: builder.query<
-      { success: boolean; data: Notification[] },
-      void
+      { success: boolean; data: Notification[]; meta: { page: number; limit: number; total: number } },
+      { isRead?: boolean; limit?: number } | void
     >({
-      query: () => ({ url: "/notifications/me" }),
+      query: (params) => {
+        const query = new URLSearchParams();
+        if (params?.isRead !== undefined) query.set("isRead", String(params.isRead));
+        if (params?.limit !== undefined) query.set("limit", String(params.limit));
+        const suffix = query.toString();
+        return { url: `/notifications/me${suffix ? `?${suffix}` : ""}` };
+      },
       providesTags: ["Notifications"],
     }),
 

@@ -44,8 +44,10 @@ export function DoctorCard({ doctor, index }: { doctor: Doctor; index: number })
           <p className="text-muted-foreground font-semibold text-sm h-10 line-clamp-2">
             {doctor.chamber}
           </p>
-          <Button className="w-full rounded-2xl h-14 font-black shadow-xl shadow-primary/10">
-            Book Appointment
+          <Button asChild className="w-full rounded-2xl h-14 font-black shadow-xl shadow-primary/10">
+            <a href={`tel:${doctor.phone}`} aria-label={`Call ${doctor.name}`}>
+              Contact Doctor
+            </a>
           </Button>
         </CardContent>
       </Card>

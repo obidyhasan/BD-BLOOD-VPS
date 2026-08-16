@@ -61,6 +61,43 @@ const createUser = async (payload: any) => {
   }
 
   if (existingByEmail && existingByEmail.isDeleted) {
+    const { referenceEmail, referrerId, ...reactivationPayload } = payload;
+    let referenceId = existingByEmail.referenceId;
+
+    if (referrerId) {
+      if (referrerId === existingByEmail.id) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "You cannot refer yourself.");
+      }
+      const referrer = await prisma.donor.findFirst({
+        where: {
+          id: referrerId,
+          isDeleted: false,
+          accountStatus: AccountStatus.ACTIVE,
+        },
+        select: { id: true },
+      });
+      if (!referrer) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Invalid Referrer ID!");
+      }
+      referenceId = referrer.id;
+    } else if (referenceEmail?.trim()) {
+      if (referenceEmail.trim().toLowerCase() === existingByEmail.email.toLowerCase()) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "You cannot refer yourself.");
+      }
+      const referrer = await prisma.donor.findFirst({
+        where: {
+          email: referenceEmail.trim(),
+          isDeleted: false,
+          accountStatus: AccountStatus.ACTIVE,
+        },
+        select: { id: true },
+      });
+      if (!referrer) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Invalid reference email!");
+      }
+      referenceId = referrer.id;
+    }
+
     // Reactivating a soft-deleted account: bcrypt only needs to run once
     // we know we're actually going to write, so it's computed here rather
     // than unconditionally at the top of the function.
@@ -74,7 +111,8 @@ const createUser = async (payload: any) => {
         email: payload.email,
       },
       data: {
-        ...payload,
+        ...reactivationPayload,
+        referenceId,
         password: hashPassword,
         isDeleted: false,
         accountStatus: AccountStatus.ACTIVE,
@@ -95,7 +133,13 @@ const createUser = async (payload: any) => {
         : Promise.resolve(null),
       prisma.bloodGroup.findUnique({ where: { id: payload.bloodGroupId } }),
       payload.referrerId
-        ? prisma.donor.findUnique({ where: { id: payload.referrerId } })
+        ? prisma.donor.findFirst({
+            where: {
+              id: payload.referrerId,
+              isDeleted: false,
+              accountStatus: AccountStatus.ACTIVE,
+            },
+          })
         : Promise.resolve(null),
       payload.referenceEmail && payload.referenceEmail.trim() !== ""
         ? prisma.donor.findUnique({
@@ -118,6 +162,7 @@ const createUser = async (payload: any) => {
   if (payload.referrerId && !referrer) {
     throw new ApiError(httpStatus.NOT_FOUND, "Invalid Referrer ID!");
   }
+  if (referrer) payload.referenceId = referrer.id;
 
   if (payload.referenceEmail && payload.referenceEmail.trim() !== "") {
     if (!referenceDonor) {
@@ -132,6 +177,7 @@ const createUser = async (payload: any) => {
 
   // Remove referenceEmail from payload so it doesn't get passed to prisma.donor.create
   delete payload.referenceEmail;
+  delete payload.referrerId;
 
   // Independent of each other (CPU-bound hash vs. a DB-backed slug
   // uniqueness loop) — run concurrently rather than back-to-back.
@@ -238,6 +284,9 @@ const buildProfileFacts = (
   donor: {
     fullName: string;
     phone: string | null;
+    phoneVerifiedAt: Date | null;
+    profilePhoto: string | null;
+    bio: string | null;
     isVerified: boolean;
     bloodGroupId: string;
     divisionId: string | null;
@@ -253,6 +302,9 @@ const buildProfileFacts = (
   fullName: donor.fullName,
   phone: donor.phone,
   emailVerified: donor.isVerified,
+  phoneVerified: Boolean(donor.phoneVerifiedAt),
+  profilePhoto: donor.profilePhoto,
+  bio: donor.bio,
   bloodGroupId: donor.bloodGroupId,
   divisionId: donor.divisionId,
   districtId: donor.districtId,
@@ -263,6 +315,47 @@ const buildProfileFacts = (
   availabilityAvailable: donor.availabilityStatus === "AVAILABLE",
   nextEligibleDonationDate: donor.nextEligibleDonationDate,
 });
+
+const refreshProfileReadiness = async (donorId: string) => {
+  const donor = await prisma.donor.findUnique({
+    where: { id: donorId, isDeleted: false },
+    include: {
+      division: { select: { id: true, isDeleted: true } },
+      district: { select: { id: true, divisionId: true, isDeleted: true } },
+      upazila: { select: { id: true, districtId: true, isDeleted: true } },
+    },
+  });
+  if (!donor) return null;
+
+  const geographyValid = Boolean(
+    donor.divisionId &&
+      donor.districtId &&
+      donor.upazilaId &&
+      donor.division &&
+      !donor.division.isDeleted &&
+      donor.district &&
+      !donor.district.isDeleted &&
+      donor.district.divisionId === donor.divisionId &&
+      donor.upazila &&
+      !donor.upazila.isDeleted &&
+      donor.upazila.districtId === donor.districtId,
+  );
+  const affiliation = await resolveDonorAffiliation(prisma, donor.id);
+  const readiness = calculateProfileReadiness(
+    buildProfileFacts(donor, Boolean(affiliation), geographyValid),
+  );
+
+  return prisma.donor.update({
+    where: { id: donor.id },
+    data: {
+      profileStatus: readiness.status,
+      profileCompletedAt:
+        readiness.status === "COMPLETE"
+          ? (donor.profileCompletedAt ?? readiness.completedAt)
+          : null,
+    },
+  });
+};
 
 const getMyProfile = async (user: IJWTPayload) => {
   const profileInfo = await prisma.donor.findUniqueOrThrow({
@@ -321,6 +414,7 @@ const getMyProfile = async (user: IJWTPayload) => {
     referralCount: _count.referredDonors,
     profileStatus: readiness.status,
     missingProfileFields: readiness.missingFields,
+    profileCompletionPercentage: readiness.completionPercentage,
     emailVerified: profileInfo.isVerified,
     phoneVerified: Boolean(profileInfo.phoneVerifiedAt),
     affiliation: profileInfo.affiliations[0] ?? affiliation,
@@ -489,6 +583,14 @@ const updateMyProfile = async (
   await prisma.$transaction(async (tx) => {
     const payloadData = payload as Prisma.DonorUncheckedUpdateInput;
     const nextData: Prisma.DonorUncheckedUpdateInput = { ...payloadData };
+    if (
+      typeof payloadData.phone === "string" &&
+      payloadData.phone.trim() !== (userInfo.phone ?? "").trim()
+    ) {
+      // Verification belongs to the exact phone number that received the OTP.
+      // A profile edit must never carry the old number's verification forward.
+      nextData.phoneVerifiedAt = null;
+    }
     const requestedUpazilaId =
       typeof payloadData.upazilaId === "string"
         ? payloadData.upazilaId
@@ -787,4 +889,5 @@ export const UserService = {
   getPublicDonors,
   getPublicDonorById,
   getPublicDonorBySlug,
+  refreshProfileReadiness,
 };

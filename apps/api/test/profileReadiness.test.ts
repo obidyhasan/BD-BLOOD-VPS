@@ -11,6 +11,9 @@ const completeFacts = {
   fullName: "A Donor",
   phone: "01700000000",
   emailVerified: true,
+  phoneVerified: true,
+  profilePhoto: "https://example.com/donor.jpg",
+  bio: "Regular volunteer donor",
   bloodGroupId: "blood-a",
   divisionId: "division-1",
   districtId: "district-1",
@@ -26,11 +29,17 @@ test("profile readiness reports missing verification, geography, and affiliation
   const missing = getMissingProfileFields({
     ...completeFacts,
     emailVerified: false,
+    phoneVerified: false,
     geographyValid: false,
     affiliationActive: false,
   });
 
-  assert.deepEqual(missing, ["emailVerified", "geographicAncestry", "affiliation"]);
+  assert.deepEqual(missing, [
+    "emailVerified",
+    "phoneVerified",
+    "geographicAncestry",
+    "affiliation",
+  ]);
 });
 
 test("complete profile receives a completion status and timestamp", () => {
@@ -40,6 +49,19 @@ test("complete profile receives a completion status and timestamp", () => {
   assert.equal(readiness.status, DonorProfileStatus.COMPLETE);
   assert.equal(readiness.completedAt, now);
   assert.deepEqual(readiness.missingFields, []);
+  assert.equal(readiness.completionPercentage, 100);
+});
+
+test("profile completion percentage is derived from authoritative requirements", () => {
+  const readiness = calculateProfileReadiness({
+    ...completeFacts,
+    phoneVerified: false,
+    affiliationActive: false,
+  });
+
+  assert.equal(readiness.status, DonorProfileStatus.INCOMPLETE);
+  assert.deepEqual(readiness.missingFields, ["phoneVerified", "affiliation"]);
+  assert.equal(readiness.completionPercentage, 83);
 });
 
 test("cooldown blocks request acceptance but does not invalidate profile completion", () => {

@@ -12,6 +12,7 @@ import { jwtHelper } from "../../helper/jwtHelper";
 import { IJWTPayload } from "../../types";
 import { AccountStatus, Role } from "@prisma/client";
 import { cacheHelper } from "../../helper/cacheHelper";
+import { UserService } from "../user/user.service";
 import {
   changePasswordZodSchemaType,
   forgotPasswordZodSchemaType,
@@ -429,6 +430,7 @@ const verifyEmail = async (payload: verifyEmailZodSchemaType) => {
     where: { email },
     data: { isVerified: true, verifiedAt: new Date() },
   });
+  await UserService.refreshProfileReadiness(userData.id);
   await cacheHelper.invalidateCache(`auth:userCheck:${email}`);
   return { message: "Email verified successfully!" };
 };
@@ -676,6 +678,7 @@ const verifyPhoneOtp = async (
     where: { id: donor.id },
     data: { phone, phoneVerifiedAt: new Date() },
   });
+  await UserService.refreshProfileReadiness(donor.id);
 
   return { message: "Phone number verified successfully." };
 };
