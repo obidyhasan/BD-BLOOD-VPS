@@ -30,6 +30,7 @@
     "api:seed": "npm run seed --workspace apps/api",
     "seed:demo": "npm run seed:demo --workspace apps/api",
     "verify:demo": "npm run verify:demo --workspace apps/api",
+    "audit:public-admin": "npm run audit:public-admin --workspace apps/api",
     "api:generate": "npm run prisma:generate --workspace apps/api"
   },
   "devDependencies": {

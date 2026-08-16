@@ -14,6 +14,7 @@
     "audit:migration": "tsx src/app/scripts/migrationAnomalyAudit.ts",
     "preflight:phase7": "tsx src/app/scripts/phase7CleanupPreflight.ts",
     "audit:reconciliation": "tsx src/app/scripts/systemReconciliationAudit.ts",
+    "audit:public-admin": "tsx src/app/scripts/publicSuperAdminAudit.ts",
     "backfill:organizations": "tsx src/app/scripts/organizationAffiliationBackfill.ts",
     "backfill:organizations:apply": "tsx src/app/scripts/organizationAffiliationBackfill.ts --apply",
     "backfill:profiles": "tsx src/app/scripts/profileReadinessBackfill.ts",

@@ -43,7 +43,7 @@ export default function GoogleCallbackClient() {
         toast.success("Signed in with Google");
 
         if (user.role === "ADMIN") {
-          router.replace("/dashboard/admin/analytics");
+          router.replace("/dashboard/admin");
           return;
         }
 

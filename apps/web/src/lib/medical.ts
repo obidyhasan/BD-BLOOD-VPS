@@ -9,6 +9,7 @@ export type InstitutionUI = {
   name: string;
   type: string;
   phone: string;
+  address: string;
   division: string;
   district: string;
   upazila: string;
@@ -17,7 +18,6 @@ export type InstitutionUI = {
   upazilaId?: string;
   status: string;
   image?: string;
-  description?: string;
   doctorsCount: number;
   specialists?: {
     name: string;
@@ -25,8 +25,6 @@ export type InstitutionUI = {
     schedule: string;
     contact: string;
   }[];
-  departments?: string[];
-  emergencyServices?: string[];
 };
 
 export type AdUI = {
@@ -60,6 +58,7 @@ export function mapInstitutionToUI(inst: MedicalInstitution): InstitutionUI {
     name: inst.name,
     type: inst.type ?? "Hospital",
     phone: inst.phone,
+    address: inst.address,
     division: inst.division?.name ?? "",
     district: inst.district?.name ?? "",
     upazila: inst.upazila?.name ?? "",
@@ -68,8 +67,13 @@ export function mapInstitutionToUI(inst: MedicalInstitution): InstitutionUI {
     upazilaId: inst.upazilaId,
     status: inst.openStatus ?? "Open",
     image: inst.coverImage ?? inst.logo ?? undefined,
-    description: undefined,
     doctorsCount: inst.doctors?.length ?? 0,
+    specialists: (inst.doctors ?? []).map((doctor) => ({
+      name: doctor.name,
+      specialist: doctor.specialization,
+      schedule: doctor.visitingHours ?? "Schedule unavailable",
+      contact: doctor.phone,
+    })),
   };
 }
 

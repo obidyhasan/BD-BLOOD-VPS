@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Clock3, MapPin, Phone, Stethoscope, HeartPulse, ShieldCheck, Activity, Zap, ArrowUpRight, Loader2, Hospital, Filter, Check, ChevronsUpDown } from "lucide-react";
+import { Clock3, MapPin, Phone, Stethoscope, ShieldCheck, Activity, Zap, Loader2, Hospital, Filter, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import DetailsHeader from "@/components/shared/DetailsHeader/DetailsHeader";
 import { useGetInstitutionBySlugQuery } from "@/redux/features/medicalInstitutions/medicalInstitutionsApi";
@@ -46,14 +46,7 @@ const MedicalDetailsPage = ({
 
   const allSpecialists = useMemo(() => {
     if (!institution) return [];
-    return institution.specialists && institution.specialists.length > 0
-      ? institution.specialists
-      : [
-        { name: "Dr. Imran Hossain", specialist: "Hematologist", schedule: "Mon - Thu, 4:00 PM - 8:00 PM", contact: "+880 1711-223344" },
-        { name: "Dr. Tanzina Islam", specialist: "Cardiologist", schedule: "Sun - Wed, 5:00 PM - 9:00 PM", contact: "+880 1811-223344" },
-        { name: "Dr. Rafiqul Amin", specialist: "General Physician", schedule: "Everyday, 10:00 AM - 2:00 PM", contact: "+880 1911-223344" },
-        { name: "Dr. Samina Chowdhury", specialist: "Neurologist", schedule: "Fri - Sat, 3:00 PM - 7:00 PM", contact: "+880 1611-223344" }
-      ];
+    return institution.specialists ?? [];
   }, [institution]);
 
   const uniqueSpecialties = useMemo(() => {
@@ -80,8 +73,12 @@ const MedicalDetailsPage = ({
       <div className="min-h-screen flex flex-col items-center justify-center gap-6">
         <Hospital className="size-20 text-muted-foreground/20" />
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-black uppercase tracking-tighter ">Institution Not Found</h2>
-          <p className="text-sm font-medium text-muted-foreground">The requested medical facility is not registered in our directory.</p>
+          <h2 className="text-3xl font-black uppercase tracking-tighter ">{isError ? "Unable to Load Institution" : "Institution Not Found"}</h2>
+          <p className="text-sm font-medium text-muted-foreground">
+            {isError
+              ? "The medical directory is temporarily unavailable. Please try again."
+              : "The requested medical facility is not registered in our directory."}
+          </p>
         </div>
         <Link href="/medical">
           <Button variant="outline" className="h-12 px-8 rounded-2xl font-black text-xs uppercase ">
@@ -155,43 +152,8 @@ const MedicalDetailsPage = ({
             <div className="space-y-8 prose prose-zinc dark:prose-invert max-w-none">
               <div className="text-lg font-medium text-muted-foreground leading-relaxed space-y-6 ">
                 <p>
-                  {institution.description || `${institution.name} is a premier ${institution.type} serving the ${institution.division} division. It is equipped with advanced emergency response parameters, an automated blood management system, and coordinated donor referral networks.`}
+                  {institution.address}
                 </p>
-              </div>
-            </div>
-
-            {/* Medical Capabilities and Protocols grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6">
-              <div className="p-8 rounded-[2.5rem] bg-zinc-950 text-white relative overflow-hidden group">
-                <Activity className="absolute -bottom-6 -right-6 size-48 text-white/5 -rotate-12 transition-transform duration-1000 group-hover:scale-110" />
-                <h4 className="relative z-10 text-xs font-black text-primary uppercase  flex items-center gap-2">
-                  <ShieldCheck className="size-3" />
-                  Medical Departments
-                </h4>
-                <ul className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                  {(institution.departments && institution.departments.length > 0 ? institution.departments : ["Hematology & Blood Bank", "Cardiology & CCU", "Neurology", "Orthopedic Surgery", "Internal Medicine", "General Surgery"]).map(item => (
-                    <li key={item} className="flex items-center gap-3 text-sm font-bold tracking-tighter transition-colors z-10">
-                      <ArrowUpRight className="size-3 opacity-20" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="p-8 rounded-[2.5rem] bg-emerald-50 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-50 relative overflow-hidden group border border-emerald-500/20">
-                <HeartPulse className="absolute -bottom-6 -right-6 size-48 text-emerald-500/10 -rotate-12 transition-transform duration-1000 group-hover:scale-110" />
-                <h4 className="relative z-10 text-xs font-black text-emerald-600 uppercase  flex items-center gap-2">
-                  <Zap className="size-3" />
-                  Emergency Services
-                </h4>
-                <ul className="relative z-10 space-y-4 mt-6">
-                  {(institution.emergencyServices && institution.emergencyServices.length > 0 ? institution.emergencyServices : ["Level 1 Trauma Center", "24/7 Ambulance Fleet", "Critical Care & ICU", "Emergency Blood Transfusion", "Rapid Diagnostic Lab"]).map(item => (
-                    <li key={item} className="flex items-center gap-3 text-sm font-bold uppercase tracking-tight z-10">
-                      <div className="size-1.5 rounded-full bg-emerald-500" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
               </div>
             </div>
 
@@ -296,6 +258,11 @@ const MedicalDetailsPage = ({
                     </div>
                   </div>
                 ))}
+                {filteredDoctors.length === 0 && (
+                  <div className="col-span-full rounded-2xl border border-dashed border-border/50 py-12 text-center text-sm font-semibold text-muted-foreground">
+                    No doctors are currently listed for this institution.
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>

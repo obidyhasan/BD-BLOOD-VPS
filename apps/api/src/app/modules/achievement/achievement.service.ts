@@ -19,6 +19,54 @@ type CreateAchievementPayload = {
   active?: boolean;
 };
 
+const assertUniqueThreshold = async (
+  thresholdType: AchievementThresholdType,
+  thresholdValue: number,
+  excludeId?: string,
+) => {
+  const duplicate = await prisma.achievement.findFirst({
+    where: {
+      thresholdType,
+      thresholdValue,
+      isDeleted: false,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (duplicate) throw new ApiError(httpStatus.CONFLICT, "An achievement already uses this donation threshold.");
+};
+
+const reconcileAchievement = async (
+  tx: Prisma.TransactionClient,
+  achievement: { id: string; thresholdType: AchievementThresholdType; thresholdValue: number; active: boolean },
+) => {
+  if (!achievement.active) {
+    await tx.donorAchievement.deleteMany({ where: { achievementId: achievement.id } });
+    return;
+  }
+  const donors = await tx.donor.findMany({
+    where: { isDeleted: false },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          donations: {
+            where: {
+              isDeleted: false,
+              ...(achievement.thresholdType === AchievementThresholdType.VERIFIED_DONATIONS
+                ? { verificationStatus: "VERIFIED" }
+                : {}),
+            },
+          },
+        },
+      },
+    },
+  });
+  const eligibleIds = donors.filter((donor) => donor._count.donations >= achievement.thresholdValue).map((donor) => donor.id);
+  await tx.donorAchievement.deleteMany({ where: { achievementId: achievement.id, ...(eligibleIds.length ? { donorId: { notIn: eligibleIds } } : {}) } });
+  if (eligibleIds.length) await tx.donorAchievement.createMany({ data: eligibleIds.map((donorId) => ({ donorId, achievementId: achievement.id })), skipDuplicates: true });
+};
+
 const getDonorFromUser = async (user: IJWTPayload) => {
   const donor = await prisma.donor.findUnique({
     where: { email: user.email, isDeleted: false },
@@ -33,15 +81,18 @@ const getDonorFromUser = async (user: IJWTPayload) => {
 };
 
 const createAchievement = async (payload: CreateAchievementPayload) => {
-  return prisma.achievement.create({
-    data: {
+  await assertUniqueThreshold(payload.thresholdType, payload.thresholdValue);
+  return prisma.$transaction(async (tx) => {
+    const achievement = await tx.achievement.create({ data: {
       title: payload.title,
       description: payload.description,
       icon: payload.icon,
       thresholdType: payload.thresholdType,
       thresholdValue: payload.thresholdValue,
       active: payload.active ?? true,
-    },
+    } });
+    await reconcileAchievement(tx, achievement);
+    return achievement;
   });
 };
 
@@ -83,7 +134,7 @@ const getSingleAchievement = async (id: string) => {
 
 const updateAchievement = async (
   id: string,
-  payload: Prisma.AchievementUpdateInput,
+  payload: Partial<CreateAchievementPayload>,
 ) => {
   const existing = await prisma.achievement.findUnique({
     where: { id, isDeleted: false },
@@ -93,7 +144,14 @@ const updateAchievement = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Achievement not found!");
   }
 
-  return prisma.achievement.update({ where: { id }, data: payload });
+  const thresholdType = payload.thresholdType ?? existing.thresholdType;
+  const thresholdValue = payload.thresholdValue ?? existing.thresholdValue;
+  await assertUniqueThreshold(thresholdType, thresholdValue, id);
+  return prisma.$transaction(async (tx) => {
+    const achievement = await tx.achievement.update({ where: { id }, data: payload });
+    await reconcileAchievement(tx, achievement);
+    return achievement;
+  });
 };
 
 const deleteAchievement = async (id: string) => {
@@ -105,9 +163,12 @@ const deleteAchievement = async (id: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Achievement not found!");
   }
 
-  return prisma.achievement.update({
-    where: { id },
-    data: { isDeleted: true, deletedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    await tx.donorAchievement.deleteMany({ where: { achievementId: id } });
+    return tx.achievement.update({
+      where: { id },
+      data: { isDeleted: true, deletedAt: new Date(), active: false },
+    });
   });
 };
 

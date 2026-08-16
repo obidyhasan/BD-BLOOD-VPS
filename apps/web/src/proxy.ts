@@ -259,10 +259,10 @@ export async function proxy(request: NextRequest) {
       }
 
       if (claims) {
-        // Admins go to admin analytics, donors go to dashboard
+        // Admins land on the consolidated Overview route.
         const redirectUrl =
           claims.role === "ADMIN"
-            ? "/dashboard/admin/analytics"
+            ? "/dashboard/admin"
             : "/dashboard/donor";
         const next = NextResponse.redirect(new URL(redirectUrl, request.url));
         if (refreshed?.accessToken) {

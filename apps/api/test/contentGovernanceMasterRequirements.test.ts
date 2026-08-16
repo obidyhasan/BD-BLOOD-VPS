@@ -88,8 +88,8 @@ test("Admin controls national division and district governance while Upazila sel
   assert.match(positionService, /Cannot delete a position while it has active occupants/);
   assert.match(publicDirectory, /divisionId: divisionId \|\| undefined/);
   assert.match(publicDirectory, /districtId: districtId \|\| undefined/);
-  assert.match(publicDirectory, /handleUpazilaSelect/);
-  assert.match(publicDirectory, /router\.push\(`\/organization\/\$\{org\.id\}`\)/);
+  assert.match(publicDirectory, /selectUpazila/);
+  assert.match(publicDirectory, /router\.push\(`\/organization\/\$\{result\.data\.id\}`\)/);
 });
 
 test("organization public profiles render only organization-scoped public gallery queries", async () => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 /** @deprecated Use `useLocationCascade` / location API — kept for legacy admin forms. */
 export const Divisions = [
   { name: "Dhaka" },
@@ -77,10 +79,31 @@ export const LocationSelector = ({
   setZila,
   onUpazilaSelect,
 }: LocationSelectorProps) => {
-  const { divisions, districts, upazilas } = useLocationCascade(
+  const { divisions, districts, upazilas, isLoading, isError } = useLocationCascade(
     divisionId,
     districtId,
   );
+
+  useEffect(() => {
+    if (!isLoading && divisionId && !divisions.some((item) => item.id === divisionId)) {
+      setDivisionId?.("");
+      setDistrictId?.("");
+      setUpazilaId?.("");
+    }
+  }, [divisionId, divisions, isLoading, setDistrictId, setDivisionId, setUpazilaId]);
+
+  useEffect(() => {
+    if (!isLoading && divisionId && districtId && !districts.some((item) => item.id === districtId)) {
+      setDistrictId?.("");
+      setUpazilaId?.("");
+    }
+  }, [districtId, districts, divisionId, isLoading, setDistrictId, setUpazilaId]);
+
+  useEffect(() => {
+    if (!isLoading && districtId && upazilaId && !upazilas.some((item) => item.id === upazilaId)) {
+      setUpazilaId?.("");
+    }
+  }, [districtId, isLoading, setUpazilaId, upazilaId, upazilas]);
 
   const handleDistrictChange = (value: string) => {
     setDistrictId?.(value);
@@ -97,7 +120,7 @@ export const LocationSelector = ({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto" aria-busy={isLoading}>
       <Select
         value={divisionId}
         onValueChange={(v) => {
@@ -108,7 +131,7 @@ export const LocationSelector = ({
         }}
       >
         <SelectTrigger className="w-full py-6 bg-zinc-50 dark:bg-zinc-950 border border-border/40 rounded-2xl px-5 text-sm font-bold">
-          <SelectValue placeholder="Division" />
+          <SelectValue placeholder={isError ? "Locations unavailable" : "Division"} />
         </SelectTrigger>
         <SelectContent>
           {divisions.map((item) => (

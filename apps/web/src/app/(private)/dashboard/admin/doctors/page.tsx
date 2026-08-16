@@ -16,6 +16,7 @@ import {
   useUpdateDoctorMutation,
 } from "@/redux/features/medicalInstitutions/medicalInstitutionsApi";
 import { toast } from "sonner";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog/DeleteConfirmDialog";
 
 const emptyForm = { institutionId: "", name: "", specialization: "", phone: "", visitingHours: "", experience: "" };
 
@@ -24,8 +25,9 @@ export default function DoctorsAdminPage() {
   const { data: institutionsData } = useGetAllInstitutionsQuery({ limit: 200 });
   const [createDoctor, createState] = useCreateDoctorMutation();
   const [updateDoctor, updateState] = useUpdateDoctorMutation();
-  const [deleteDoctor] = useDeleteDoctorMutation();
+  const [deleteDoctor, deleteState] = useDeleteDoctorMutation();
   const [editing, setEditing] = useState<Doctor | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Doctor | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const reset = () => { setEditing(null); setForm(emptyForm); };
@@ -50,9 +52,10 @@ export default function DoctorsAdminPage() {
         </form>
       </Card>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {(doctorsData?.data ?? []).map((doctor) => <Card key={doctor.id} className="p-5"><h3 className="font-black">{doctor.name}</h3><p className="text-sm text-muted-foreground">{doctor.specialization} · {doctor.institution?.name}</p><p className="mt-2 text-sm">{doctor.phone}</p><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => { setEditing(doctor); setForm({ institutionId: doctor.institutionId, name: doctor.name, specialization: doctor.specialization, phone: doctor.phone, visitingHours: doctor.visitingHours ?? "", experience: doctor.experience ?? "" }); }}>Edit</Button><Button size="sm" variant="destructive" onClick={async () => { try { await deleteDoctor(doctor.id).unwrap(); toast.success("Doctor removed"); } catch { toast.error("Could not remove doctor"); } }}>Delete</Button></div></Card>)}
+        {(doctorsData?.data ?? []).map((doctor) => <Card key={doctor.id} className="p-5"><h3 className="font-black">{doctor.name}</h3><p className="text-sm text-muted-foreground">{doctor.specialization} · {doctor.institution?.name}</p><p className="mt-2 text-sm">{doctor.phone}</p><div className="mt-4 flex gap-2"><Button size="sm" variant="outline" onClick={() => { setEditing(doctor); setForm({ institutionId: doctor.institutionId, name: doctor.name, specialization: doctor.specialization, phone: doctor.phone, visitingHours: doctor.visitingHours ?? "", experience: doctor.experience ?? "" }); }}>Edit</Button><Button size="sm" variant="destructive" onClick={() => setDeleteTarget(doctor)}>Delete</Button></div></Card>)}
       </div>
       {!isLoading && !(doctorsData?.data ?? []).length && <p className="text-center text-muted-foreground">No doctors configured.</p>}
+      <DeleteConfirmDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)} title="Remove doctor?" description={`Remove ${deleteTarget?.name ?? "this doctor"} from the public medical directory?`} loading={deleteState.isLoading} onConfirm={async () => { if (!deleteTarget) return; try { await deleteDoctor(deleteTarget.id).unwrap(); toast.success("Doctor removed"); setDeleteTarget(null); } catch { toast.error("Could not remove doctor"); } }} />
     </div>
   );
 }

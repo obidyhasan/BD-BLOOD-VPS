@@ -299,13 +299,15 @@ export const organizationsApi = baseApi.injectEndpoints({
       { success: boolean; data: OrganizationMember[] },
       {
         level: "EXECUTIVE" | "MANAGEMENT";
+        category?: "COMMITTEE" | "ADVISOR";
         organizationId?: string;
         divisionId?: string;
         districtId?: string;
       }
     >({
-      query: ({ level, organizationId, divisionId, districtId }) => {
+      query: ({ level, category, organizationId, divisionId, districtId }) => {
         const qp = new URLSearchParams({ level });
+        if (category) qp.set("category", category);
         if (organizationId) qp.set("organizationId", organizationId);
         if (divisionId) qp.set("divisionId", divisionId);
         if (districtId) qp.set("districtId", districtId);

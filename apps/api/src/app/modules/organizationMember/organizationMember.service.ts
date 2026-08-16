@@ -32,6 +32,7 @@ const governanceSeatKey = (
 
 type LeadershipScope = {
   level: PositionLevel;
+  category: GovernanceCategory;
   organizationId?: string;
   divisionId?: string;
   districtId?: string;
@@ -209,9 +210,8 @@ const getPublicLeadershipMembers = async (scope: LeadershipScope) => {
       organizationId: resolvedOrganizationId,
       position: {
         isDeleted: false,
-        level: scope.level,
-        positionStatus: PositionStatus.ACTIVE,
       },
+      category: scope.category,
     },
     select: {
       id: true,

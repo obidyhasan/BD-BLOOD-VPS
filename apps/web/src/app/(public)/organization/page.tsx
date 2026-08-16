@@ -1,19 +1,13 @@
 import AllOrganization from "@/components/modules/Organization/AllOrganization/AllOrganization";
-import {
-  getPublicLeadershipMembers,
-} from "@/services/organization";
-import { getPublicPosts } from "@/services/post";
+import { getPublicLeadershipMembers } from "@/services/organization";
 
 export default async function Page() {
-  const [leadershipRes, postsRes] = await Promise.all([
-    getPublicLeadershipMembers({ level: "EXECUTIVE" }),
-    getPublicPosts({ limit: 20, isWork: true, approvalStatus: "APPROVED" }),
-  ]);
+  const leadershipRes = await getPublicLeadershipMembers({
+    level: "EXECUTIVE",
+    category: "COMMITTEE",
+  });
 
   return (
-    <AllOrganization
-      initialLeadership={leadershipRes?.data ?? []}
-      initialPosts={postsRes?.data ?? []}
-    />
+    <AllOrganization initialLeadership={leadershipRes?.data ?? []} />
   );
 }

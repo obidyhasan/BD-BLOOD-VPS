@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { PositionLevel } from "@prisma/client";
+import { GovernanceCategory, PositionLevel } from "@prisma/client";
 import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
@@ -55,6 +55,11 @@ const getPublicLeadershipMembers = catchAsync(async (req: Request, res: Response
     req.query.level === "MANAGEMENT"
       ? PositionLevel.MANAGEMENT
       : PositionLevel.EXECUTIVE;
+  const category =
+    req.query.category === GovernanceCategory.ADVISOR ||
+    req.query.level === PositionLevel.MANAGEMENT
+      ? GovernanceCategory.ADVISOR
+      : GovernanceCategory.COMMITTEE;
 
   const organizationId =
     typeof req.query.organizationId === "string" && req.query.organizationId
@@ -71,6 +76,7 @@ const getPublicLeadershipMembers = catchAsync(async (req: Request, res: Response
 
   const result = await OrganizationMemberService.getPublicLeadershipMembers({
     level,
+    category,
     organizationId,
     divisionId,
     districtId,
@@ -168,4 +174,3 @@ export const OrganizationMemberController = {
   updateMemberStatus,
   leaveOrganization,
 };
-

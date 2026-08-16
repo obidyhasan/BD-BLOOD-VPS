@@ -16,6 +16,7 @@ import {
 } from "@/redux/features/achievements/achievementsApi";
 import { Award, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog/DeleteConfirmDialog";
 
 const blank: AchievementInput = {
   title: "",
@@ -30,9 +31,10 @@ export default function AdminAchievementsPage() {
   const { data, isLoading } = useGetAdminAchievementsQuery();
   const [createAchievement, { isLoading: creating }] = useCreateAchievementMutation();
   const [updateAchievement, { isLoading: updating }] = useUpdateAchievementMutation();
-  const [deleteAchievement] = useDeleteAchievementMutation();
+  const [deleteAchievement, deleteState] = useDeleteAchievementMutation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AchievementInput>(blank);
+  const [deleteTarget, setDeleteTarget] = useState<MyAchievement | null>(null);
 
   const edit = (achievement: MyAchievement) => {
     setEditingId(achievement.id);
@@ -52,6 +54,15 @@ export default function AdminAchievementsPage() {
       setForm(blank);
     } catch {
       toast.error("Unable to save achievement");
+    }
+  };
+
+  const toggleActive = async (achievement: MyAchievement) => {
+    try {
+      await updateAchievement({ id: achievement.id, data: { active: !achievement.active } }).unwrap();
+      toast.success(achievement.active ? "Achievement deactivated" : "Achievement activated");
+    } catch {
+      toast.error("Unable to update achievement status");
     }
   };
 
@@ -79,13 +90,14 @@ export default function AdminAchievementsPage() {
               <p className="text-sm font-bold">Threshold: {achievement.thresholdValue} {achievement.thresholdType.replaceAll("_", " ").toLowerCase()}</p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => edit(achievement)}><Pencil className="mr-2 size-4" /> Edit</Button>
-                <Button size="sm" variant="outline" onClick={() => void updateAchievement({ id: achievement.id, data: { active: !achievement.active } })}>{achievement.active ? "Deactivate" : "Activate"}</Button>
-                <Button size="sm" variant="destructive" onClick={async () => { try { await deleteAchievement(achievement.id).unwrap(); toast.success("Achievement deleted"); } catch { toast.error("Unable to delete achievement"); } }}><Trash2 className="mr-2 size-4" /> Delete</Button>
+                <Button size="sm" variant="outline" onClick={() => void toggleActive(achievement)}>{achievement.active ? "Deactivate" : "Activate"}</Button>
+                <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(achievement)}><Trash2 className="mr-2 size-4" /> Delete</Button>
               </div>
             </article>
           ))}
         </div>
       )}
+      <DeleteConfirmDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)} title="Delete achievement?" description={`Delete “${deleteTarget?.title ?? "this achievement"}”? Existing donor unlock relationships may prevent deletion.`} loading={deleteState.isLoading} onConfirm={async () => { if (!deleteTarget) return; try { await deleteAchievement(deleteTarget.id).unwrap(); toast.success("Achievement deleted"); setDeleteTarget(null); } catch { toast.error("Unable to delete achievement"); } }} />
     </div>
   );
 }

@@ -13,7 +13,6 @@ import {
   ArrowUpRight,
   Bell,
   CheckCircle2,
-  BarChart3,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,6 +21,7 @@ import {
   useGetPlatformStatsQuery,
 } from "@/redux/features/analytics/analyticsApi";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import { AuditLogSection } from "@/components/modules/Admin/Overview/AuditLogSection";
 
 // recharts is a substantial dependency; deferring it out of the initial
 // bundle for this route means the dashboard shell (stats cards, activity
@@ -42,7 +42,7 @@ const ChartAreaInteractive = dynamic(
 
 export default function AdminDashboardPage() {
   const { data: statsData, isLoading } = useGetPlatformStatsQuery();
-  const { data: activityData } = useGetActivityFeedQuery({ limit: 5 });
+  const { data: activityData } = useGetActivityFeedQuery({ limit: 30 });
   const s = statsData?.data;
 
   const stats = [
@@ -116,11 +116,12 @@ export default function AdminDashboardPage() {
       icon: Globe,
       color: "text-primary",
       bg: "bg-primary/10",
-      href: "/dashboard/admin/analytics",
+      href: "/dashboard/admin",
     },
   ];
 
-  const recentActivity = (activityData?.data ?? []).map((item) => ({
+  const activityItems = activityData?.data ?? [];
+  const recentActivity = activityItems.slice(0, 5).map((item) => ({
     action: item.action,
     org: item.org,
     time: formatRelativeTime(item.createdAt),
@@ -155,13 +156,6 @@ export default function AdminDashboardPage() {
       icon: ShieldCheck,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
-    },
-    {
-      label: "Analytics",
-      href: "/dashboard/admin/analytics",
-      icon: BarChart3,
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
     },
     {
       label: "Notifications",
@@ -324,6 +318,7 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       </motion.div>
+      <AuditLogSection items={activityItems} />
     </div>
   );
 }

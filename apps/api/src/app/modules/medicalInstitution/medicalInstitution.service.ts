@@ -76,7 +76,12 @@ const getAllInstitutions = async (params: IGenericFilters, options: IOptions) =>
       take: limit,
       where: whereConditions,
       orderBy: { [sortBy]: sortOrder },
-      include: { division: true, district: true, upazila: true },
+      include: {
+        division: true,
+        district: true,
+        upazila: true,
+        doctors: { where: { isDeleted: false }, orderBy: { name: "asc" } },
+      },
     }),
     prisma.medicalInstitution.count({
       where: whereConditions,
@@ -111,6 +116,12 @@ const getSingleInstitution = async (slugOrId: string) => {
   const id = await resolveInstitutionId(slugOrId);
   return prisma.medicalInstitution.findUniqueOrThrow({
     where: { id, isDeleted: false },
+    include: {
+      division: true,
+      district: true,
+      upazila: true,
+      doctors: { where: { isDeleted: false }, orderBy: { name: "asc" } },
+    },
   });
 };
 
@@ -118,6 +129,12 @@ const getInstitutionBySlug = async (slug: string) => {
   const id = await resolveInstitutionId(slug);
   return prisma.medicalInstitution.findUniqueOrThrow({
     where: { id, isDeleted: false },
+    include: {
+      division: true,
+      district: true,
+      upazila: true,
+      doctors: { where: { isDeleted: false }, orderBy: { name: "asc" } },
+    },
   });
 };
 

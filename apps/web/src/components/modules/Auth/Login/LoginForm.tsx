@@ -114,7 +114,7 @@ const LoginForm = () => {
           : null;
 
       if (result.data.user.role === "ADMIN") {
-        router.push(safeCallbackUrl ?? "/dashboard/admin/analytics");
+        router.push(safeCallbackUrl ?? "/dashboard/admin");
         return;
       }
 

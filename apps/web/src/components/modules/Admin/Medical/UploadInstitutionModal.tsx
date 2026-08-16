@@ -34,13 +34,10 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Hospital,
   Plus,
   Loader2,
-  MapPin,
   Phone,
   Clock,
-  Stethoscope,
 } from "lucide-react";
 import {
   useCreateInstitutionMutation,
@@ -59,12 +56,8 @@ const institutionSchema = z.object({
   district: z.string().min(1, "District is required"),
   upazila: z.string().min(1, "Upazila is required"),
   status: z.string().min(1, "Status is required"),
-  doctorsCount: z.number().min(0),
   image: z.string().optional(),
-  description: z.string().optional(),
-  departments: z.string().optional(),
-  emergencyServices: z.string().optional(),
-  specialists: z.string().optional(),
+  address: z.string().min(3, "Address is required"),
 });
 
 interface UploadInstitutionModalProps {
@@ -96,12 +89,8 @@ const UploadInstitutionModal = ({
       district: "",
       upazila: "",
       status: "Open 24/7",
-      doctorsCount: 0,
       image: "",
-      description: "",
-      departments: "",
-      emergencyServices: "",
-      specialists: "",
+      address: "",
     },
   });
 
@@ -123,18 +112,8 @@ const UploadInstitutionModal = ({
         district: institution.districtId || "",
         upazila: institution.upazilaId || "",
         status: institution.status,
-        doctorsCount: institution.doctorsCount,
         image: institution.image || "",
-        description: institution.description || "",
-        departments: institution.departments?.join(", ") || "",
-        emergencyServices: institution.emergencyServices?.join(", ") || "",
-        specialists:
-          institution.specialists
-            ?.map(
-              (s) =>
-                `${s.name} | ${s.specialist} | ${s.schedule} | ${s.contact}`,
-            )
-            .join("\n") || "",
+        address: institution.address,
       });
     } else {
       form.reset({
@@ -146,12 +125,8 @@ const UploadInstitutionModal = ({
         district: "",
         upazila: "",
         status: "Open 24/7",
-        doctorsCount: 0,
         image: "",
-        description: "",
-        departments: "",
-        emergencyServices: "",
-        specialists: "",
+        address: "",
       });
     }
   }, [institution, form, open]);
@@ -178,7 +153,7 @@ const UploadInstitutionModal = ({
         phone: data.phone,
         type: data.type,
         openStatus: data.status,
-        address: data.description || data.name,
+        address: data.address,
         slug: data.slug,
         divisionId: data.division,
         districtId: data.district,
@@ -512,114 +487,20 @@ const UploadInstitutionModal = ({
               />
               <FormField
                 control={form.control}
-                name="doctorsCount"
+                name="address"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
-                      Doctor Count
+                      Street Address
                     </FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
-                        <Input
-                          type="number"
-                          className="h-14 pl-12 rounded-2xl bg-zinc-50 border-border/40 font-bold"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(parseInt(e.target.value))
-                          }
-                        />
-                      </div>
+                      <Textarea className="min-h-14 rounded-2xl bg-zinc-50 border-border/40 font-bold" placeholder="Road, area and landmark" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
-                    Brief Description
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="rounded-2xl bg-zinc-50 border-border/40 font-bold min-h-[100px]"
-                      placeholder="Enter a brief summary of the institution's services..."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="departments"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
-                      Departments (Comma separated)
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        className="rounded-2xl bg-zinc-50 border-border/40 font-bold min-h-[100px]"
-                        placeholder="Hematology, Cardiology, Neurology..."
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="emergencyServices"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
-                      Emergency Services (Comma separated)
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        className="rounded-2xl bg-zinc-50 border-border/40 font-bold min-h-[100px]"
-                        placeholder="ICU, Ambulance, Blood Bank..."
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="specialists"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-black uppercase text-muted-foreground px-1">
-                    Specialists List
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="rounded-2xl bg-zinc-50 border-border/40 font-bold min-h-[150px]"
-                      placeholder="Dr. John Doe | Hematologist | Mon-Fri 10AM-2PM | +88017..."
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-[10px] font-bold text-muted-foreground/60 px-1 ">
-                    Format: Name | Role | Schedule | Contact (One per line)
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <DialogFooter className="grid grid-cols-2 gap-4">
               <DialogClose asChild>

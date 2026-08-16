@@ -246,7 +246,7 @@ export default function AdminBlogsPage() {
                       </span>
                     </div>
 
-                    <Link href={`/blog/${blog.id}`}>
+                    <Link href={`/blog/${blog.slug || blog.id}`}>
                       <h3 className="font-black text-xl tracking-tighter group-hover:text-primary transition-colors leading-tight uppercase line-clamp-2">
                         {blog.title}
                       </h3>

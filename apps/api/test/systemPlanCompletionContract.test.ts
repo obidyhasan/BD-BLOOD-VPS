@@ -26,7 +26,11 @@ test("canonical organization hierarchy and affiliation APIs are separate from go
 test("public organization UI uses location directory and strict Upazila resolution without exposing internal hierarchy", async () => {
   const page = await read("../web/src/components/modules/Organization/AllOrganization/AllOrganization.tsx");
   assert.match(page, /useLazyGetCanonicalOrganizationByUpazilaQuery/);
-  assert.match(page, /buildLocationOrgQueryParams/);
+  assert.match(page, /LocationSelector/);
+  assert.match(page, /category: "COMMITTEE"/);
+  assert.match(page, /category: "ADVISOR"/);
+  assert.doesNotMatch(page, /useGetAllOrganizationsQuery/);
+  assert.doesNotMatch(page, /OrganizationCard/);
   assert.doesNotMatch(page, /useGetOrganizationTreeQuery/);
   assert.doesNotMatch(page, /HierarchyNode/);
 });
