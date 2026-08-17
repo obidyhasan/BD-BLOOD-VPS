@@ -11,19 +11,15 @@ import { motion, useScroll, useMotionValueEvent } from "motion/react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { UserDropdown } from "./user-dropdown";
-import { useAppSelector } from "@/redux/hooks";
-import { selectCurrentUser } from "@/redux/features/auth/authSlice";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Navbar = () => {
   const { scrollY } = useScroll();
   const [isScrolled, setIsScrolled] = useState(false);
-  const reduxUser = useAppSelector(selectCurrentUser);
   const sessionUser = useSessionUser();
-  const user = reduxUser ?? sessionUser.me;
-  const isUserLoading =
-    !reduxUser && (sessionUser.isLoading || sessionUser.isFetching);
+  const user = sessionUser.me;
+  const isUserLoading = sessionUser.isLoading;
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setIsScrolled(latest > 20);

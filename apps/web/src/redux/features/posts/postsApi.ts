@@ -70,8 +70,20 @@ export interface PostQueryParams {
   sortOrder?: "asc" | "desc";
 }
 
+export interface HomepagePosts {
+  successHistory: Post[];
+  donorPosts: Post[];
+}
+
 export const postsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    getHomepagePosts: builder.query<
+      { success: boolean; data: HomepagePosts },
+      void
+    >({
+      query: () => ({ url: "/posts/homepage?successLimit=6&donorLimit=8" }),
+      providesTags: ["Posts"],
+    }),
     getPostEligibility: builder.query<
       { success: boolean; data: DonationPostEligibility[] },
       void
@@ -264,6 +276,7 @@ export const postsApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetHomepagePostsQuery,
   useGetPostEligibilityQuery,
   useGetMyPostsQuery,
   useGetMyPostBySlugQuery,

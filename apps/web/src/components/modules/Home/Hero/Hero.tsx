@@ -65,7 +65,9 @@ const Hero = ({ initialStats, initialDivisions }: HeroProps) => {
   const { data: divisionsData } = useGetDivisionsQuery(undefined, {
     skip: !!initialDivisions?.length,
   });
-  const divisions = initialDivisions ?? divisionsData?.data ?? [];
+  const divisions = initialDivisions?.length
+    ? initialDivisions
+    : divisionsData?.data ?? [];
   const { data: districtsData } = useGetDistrictsQuery(
     divisionId ? { divisionId } : undefined,
     { skip: !divisionId },

@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { Bell, Building2, HeartPulse, Home, Hospital, User } from "lucide-react";
 import { motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAppSelector } from "@/redux/hooks";
-import { selectCurrentUser } from "@/redux/features/auth/authSlice";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +18,8 @@ const bottomNavItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const reduxUser = useAppSelector(selectCurrentUser);
   const sessionUser = useSessionUser();
-  const user = reduxUser ?? sessionUser.me;
+  const user = sessionUser.me;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[90] lg:hidden">
@@ -42,6 +39,10 @@ export function BottomNav() {
             <Link
               key={item.label}
               href={href}
+              aria-disabled={item.isAccount && sessionUser.isLoading}
+              onClick={(event) => {
+                if (item.isAccount && sessionUser.isLoading) event.preventDefault();
+              }}
               className="relative flex h-full flex-1 flex-col items-center justify-center transition-all active:scale-90"
               aria-label={item.label}
             >

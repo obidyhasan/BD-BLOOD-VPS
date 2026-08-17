@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/accordion";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { MessageCircleQuestion, Loader2 } from "lucide-react";
+import { MessageCircleQuestion, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useGetAllFaqsQuery } from "@/redux/features/faqs/faqsApi";
 import type { Faq } from "@/redux/features/faqs/faqsApi";
 
@@ -18,11 +19,11 @@ type FaqSectionProps = {
 
 const FaqSection = ({ initialFaqs }: FaqSectionProps) => {
   const number = "8801838482817";
-  const { data, isLoading } = useGetAllFaqsQuery(
+  const { data, isLoading, isError, refetch } = useGetAllFaqsQuery(
     { active: true, limit: 12, sortBy: "order", sortOrder: "asc" },
     { skip: !!initialFaqs?.length },
   );
-  const faqItems = (initialFaqs ?? data?.data ?? []).slice(0, 12);
+  const faqItems = (initialFaqs?.length ? initialFaqs : data?.data ?? []).slice(0, 12);
   const loading = !initialFaqs?.length && isLoading;
 
   return (
@@ -56,6 +57,12 @@ const FaqSection = ({ initialFaqs }: FaqSectionProps) => {
             {loading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="size-8 animate-spin text-primary" />
+              </div>
+            ) : isError ? (
+              <div className="rounded-[2rem] border border-dashed border-red-500/30 py-12 text-center">
+                <AlertCircle className="mx-auto mb-3 size-8 text-red-500" />
+                <p className="mb-4 font-bold">FAQs could not be loaded.</p>
+                <Button variant="outline" onClick={() => void refetch()}><RefreshCw className="mr-2 size-4" />Try again</Button>
               </div>
             ) : faqItems.length === 0 ? (
               <p className="text-muted-foreground font-medium">

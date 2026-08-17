@@ -119,21 +119,26 @@ const Carousel = ({
               {/* Background Layer */}
               <div className="absolute inset-0 z-0 text-foreground">
                 <div
-                  className={`absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent z-10`}
+                  className="absolute inset-0 z-10 bg-gradient-to-r from-white/95 via-white/55 to-transparent dark:from-zinc-950/90 dark:via-zinc-950/45"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10" />
+                <div className="absolute inset-0 z-10 bg-gradient-to-t from-white/35 via-transparent to-transparent dark:from-zinc-950/35" />
                 {slide.bannerImage && (
                   <div className="absolute inset-0 z-0">
                     <Image
                       src={slide.bannerImage}
                       alt={slide.title}
                       fill
-                      className="object-cover opacity-10 grayscale group-hover:grayscale-0 transition-all duration-1000"
+                      sizes="(max-width: 768px) 100vw, 1280px"
+                      priority={index === 0}
+                      className="object-cover object-center opacity-100 transition-transform duration-1000 group-hover:scale-[1.02]"
                     />
                   </div>
                 )}
-                <div className="absolute inset-0 bg-primary/5 mix-blend-multiply opacity-30" />
-                <div className="absolute top-0 right-0 w-2/3 h-full overflow-hidden opacity-20">
+                {!slide.bannerImage && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-zinc-100 dark:from-emerald-950 dark:via-zinc-950 dark:to-zinc-900" />
+                )}
+                <div className="absolute inset-0 z-10 bg-primary/5 opacity-15" />
+                <div className="absolute top-0 right-0 z-10 w-2/3 h-full overflow-hidden opacity-20">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_60%)]" />
                 </div>
               </div>

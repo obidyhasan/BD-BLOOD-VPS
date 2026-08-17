@@ -5,13 +5,15 @@ import { BlogCard } from "@/components/shared/BlogCard/BlogCard";
 import { useGetPublicBlogsQuery } from "@/redux/features/blogs/blogsApi";
 import { mapApiBlog } from "@/lib/blog";
 import type { BlogType } from "@/redux/features/blogs/blogsApi";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type OurBlogsProps = {
   initialBlogs?: BlogType[];
 };
 
 export default function OurBlogs({ initialBlogs }: OurBlogsProps) {
-  const { data, isLoading } = useGetPublicBlogsQuery(
+  const { data, isLoading, isError, refetch } = useGetPublicBlogsQuery(
     {
       limit: 3,
       status: "APPROVED",
@@ -21,7 +23,7 @@ export default function OurBlogs({ initialBlogs }: OurBlogsProps) {
     { skip: !!initialBlogs?.length },
   );
 
-  const displayBlogs = (initialBlogs ?? data?.data ?? []).map(mapApiBlog);
+  const displayBlogs = (initialBlogs?.length ? initialBlogs : data?.data ?? []).map(mapApiBlog);
   const loading = !initialBlogs?.length && isLoading;
 
   return (
@@ -40,7 +42,13 @@ export default function OurBlogs({ initialBlogs }: OurBlogsProps) {
           {/* {blogs.slice(0, 3).map((blog, idx) => (
             <BlogCard key={blog.slug || idx} blog={blog} index={idx} />
           ))} */}
-          {loading
+          {isError ? (
+            <div className="col-span-full rounded-[2.5rem] border border-dashed border-red-500/30 py-16 text-center">
+              <AlertCircle className="mx-auto mb-3 size-8 text-red-500" />
+              <p className="mb-4 font-bold">Articles could not be loaded.</p>
+              <Button variant="outline" onClick={() => void refetch()}><RefreshCw className="mr-2 size-4" />Try again</Button>
+            </div>
+          ) : loading
             ? [...Array(3)].map((_, i) => (
                 <div
                   key={i}

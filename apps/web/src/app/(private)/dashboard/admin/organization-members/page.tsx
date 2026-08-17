@@ -86,6 +86,27 @@ import {
 // real organization id space so it can't collide with an actual org id.
 const NATIONAL_SCOPE_VALUE = "__national__";
 
+const organizationScopeLabel = (organization?: Organization) => {
+  if (!organization) return "Loading scope…";
+  const location = organization.level === "DIVISION"
+    ? organization.division?.name
+    : organization.level === "DISTRICT"
+      ? [organization.division?.name, organization.district?.name]
+          .filter(Boolean)
+          .join(" → ")
+      : organization.level === "UPAZILA"
+        ? [
+            organization.division?.name,
+            organization.district?.name,
+            organization.upazila?.name,
+          ]
+            .filter(Boolean)
+            .join(" → ")
+        : "National";
+
+  return `${organization.level ?? "UPAZILA"} — ${location || organization.name}`;
+};
+
 const promoteSchema = z.object({
   donorId: z.string().min(1, "Select a donor"),
   organizationId: z.string().min(1, "Select an organization"),
@@ -113,6 +134,15 @@ export default function OrganizationMembersPage() {
   const orgs: Organization[] = useMemo(
     () => orgsData?.data ?? [],
     [orgsData?.data],
+  );
+  const assignableOrganizations = useMemo(
+    () =>
+      orgs
+        .filter((organization) => organization.level !== "CENTRAL")
+        .sort((left, right) =>
+          organizationScopeLabel(left).localeCompare(organizationScopeLabel(right)),
+        ),
+    [orgs],
   );
   const donors: Donor[] = useMemo(
     () => donorsData?.data ?? [],
@@ -208,12 +238,18 @@ export default function OrganizationMembersPage() {
 
   useEffect(() => {
     if (editTarget) {
+      const selectedOrganization = orgs.find(
+        (organization) => organization.id === editTarget.organizationId,
+      );
       editForm.reset({
-        organizationId: editTarget.organizationId || NATIONAL_SCOPE_VALUE,
+        organizationId:
+          !selectedOrganization || selectedOrganization.level === "CENTRAL"
+            ? NATIONAL_SCOPE_VALUE
+            : selectedOrganization.id,
         position: editTarget.position || "",
       });
     }
-  }, [editTarget, editForm]);
+  }, [editTarget, editForm, orgs]);
 
   const onPromote = async (data: z.infer<typeof promoteSchema>) => {
     setPromoteLoading(true);
@@ -594,9 +630,11 @@ export default function OrganizationMembersPage() {
                             )}
                           >
                             {field.value === NATIONAL_SCOPE_VALUE
-                              ? "National Committee (No Organization)"
+                              ? "National / Root"
                               : field.value
-                                ? orgs.find((o) => o.id === field.value)?.name
+                                ? organizationScopeLabel(
+                                    orgs.find((o) => o.id === field.value),
+                                  )
                                 : "Select organization"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
@@ -614,7 +652,7 @@ export default function OrganizationMembersPage() {
                             </CommandEmpty>
                             <CommandGroup className="max-h-[250px] overflow-auto">
                               <CommandItem
-                                value="National Committee (No Organization)"
+                                value="National Root"
                                 onSelect={() => {
                                   form.setValue(
                                     "organizationId",
@@ -632,11 +670,11 @@ export default function OrganizationMembersPage() {
                                       : "opacity-0",
                                   )}
                                 />
-                                National Committee (No Organization)
+                                National / Root
                               </CommandItem>
-                              {orgs.map((o) => (
+                              {assignableOrganizations.map((o) => (
                                 <CommandItem
-                                  value={o.name}
+                                  value={organizationScopeLabel(o)}
                                   key={o.id}
                                   onSelect={() => {
                                     form.setValue("organizationId", o.id);
@@ -653,7 +691,7 @@ export default function OrganizationMembersPage() {
                                         : "opacity-0",
                                     )}
                                   />
-                                  {o.name}
+                                  {organizationScopeLabel(o)}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -772,9 +810,11 @@ export default function OrganizationMembersPage() {
                             )}
                           >
                             {field.value === NATIONAL_SCOPE_VALUE
-                              ? "National Committee (No Organization)"
+                              ? "National / Root"
                               : field.value
-                                ? orgs.find((o) => o.id === field.value)?.name
+                                ? organizationScopeLabel(
+                                    orgs.find((o) => o.id === field.value),
+                                  )
                                 : "Select organization"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
@@ -792,7 +832,7 @@ export default function OrganizationMembersPage() {
                             </CommandEmpty>
                             <CommandGroup className="max-h-[250px] overflow-auto">
                               <CommandItem
-                                value="National Committee (No Organization)"
+                                value="National Root"
                                 onSelect={() => {
                                   editForm.setValue(
                                     "organizationId",
@@ -810,11 +850,11 @@ export default function OrganizationMembersPage() {
                                       : "opacity-0",
                                   )}
                                 />
-                                National Committee (No Organization)
+                                National / Root
                               </CommandItem>
-                              {orgs.map((o) => (
+                              {assignableOrganizations.map((o) => (
                                 <CommandItem
-                                  value={o.name}
+                                  value={organizationScopeLabel(o)}
                                   key={o.id}
                                   onSelect={() => {
                                     editForm.setValue("organizationId", o.id);
@@ -831,7 +871,7 @@ export default function OrganizationMembersPage() {
                                         : "opacity-0",
                                     )}
                                   />
-                                  {o.name}
+                                  {organizationScopeLabel(o)}
                                 </CommandItem>
                               ))}
                             </CommandGroup>

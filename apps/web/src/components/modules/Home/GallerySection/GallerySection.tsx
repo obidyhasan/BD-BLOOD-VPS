@@ -6,19 +6,21 @@ import { useGetAllGalleriesQuery } from "@/redux/features/gallery/galleryApi";
 import { mapGalleryItemToAsset } from "@/lib/gallery";
 import { useMemo } from "react";
 import type { GalleryItem } from "@/redux/features/gallery/galleryApi";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type GallerySectionProps = {
   initialGalleries?: GalleryItem[];
 };
 
 export default function GallerySection({ initialGalleries }: GallerySectionProps) {
-  const { data, isLoading } = useGetAllGalleriesQuery(
+  const { data, isLoading, isError, refetch } = useGetAllGalleriesQuery(
     { limit: 3, scope: "homepage" },
     { skip: !!initialGalleries?.length },
   );
 
   const assets = useMemo(
-    () => (initialGalleries ?? data?.data ?? []).map(mapGalleryItemToAsset),
+    () => (initialGalleries?.length ? initialGalleries : data?.data ?? []).map(mapGalleryItemToAsset),
     [initialGalleries, data],
   );
 
@@ -35,6 +37,16 @@ export default function GallerySection({ initialGalleries }: GallerySectionProps
       </section>
     );
   }
+
+  if (isError) return (
+    <section className="mx-auto max-w-7xl px-6 py-10">
+      <div className="rounded-[2.5rem] border border-dashed border-red-500/30 py-16 text-center">
+        <AlertCircle className="mx-auto mb-3 size-8 text-red-500" />
+        <p className="mb-4 font-bold">Gallery highlights could not be loaded.</p>
+        <Button variant="outline" onClick={() => void refetch()}><RefreshCw className="mr-2 size-4" />Try again</Button>
+      </div>
+    </section>
+  );
 
   if (assets.length === 0) return null;
 

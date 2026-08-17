@@ -10,8 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLogout } from "@/hooks/useLogout";
-import { useAppSelector } from "@/redux/hooks";
-import { selectCurrentUser } from "@/redux/features/auth/authSlice";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useGetMyMembershipQuery } from "@/redux/features/organizations/organizationsApi";
 import {
@@ -42,9 +40,8 @@ const donorShortcuts = [
 ];
 
 export function UserDropdown() {
-  const reduxUser = useAppSelector(selectCurrentUser);
   const sessionUser = useSessionUser();
-  const user = reduxUser ?? sessionUser.me;
+  const user = sessionUser.me;
   const handleLogout = useLogout();
   const { data: membershipData } = useGetMyMembershipQuery(undefined, {
     skip: user?.role !== "DONOR",
