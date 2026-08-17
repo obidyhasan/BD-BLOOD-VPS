@@ -20,6 +20,35 @@ test("donor self-service cannot rewrite authoritative referral attribution", () 
   assert.match(userService, /You cannot refer yourself/);
 });
 
+test("donor self-service cannot rewrite platform account status", () => {
+  const parsed = updateUserZodSchema.parse({
+    fullName: "Updated donor",
+    accountStatus: "ACTIVE",
+  });
+  assert.equal("accountStatus" in parsed, false);
+});
+
+test("donation post capability requires an unused verified donation", () => {
+  const userService = source("apps/api/src/app/modules/user/user.service.ts");
+  assert.match(userService, /verificationStatus: "VERIFIED"/);
+  assert.match(userService, /post: null/);
+  assert.match(
+    userService,
+    /capabilities\.canCreateDonationPost = Boolean\([\s\S]*eligibleDonation/,
+  );
+});
+
+test("request contact and private server reads respect the donor authorization boundary", () => {
+  const requestService = source(
+    "apps/api/src/app/modules/bloodRequest/bloodRequest.service.ts",
+  );
+  const serverFetch = source("apps/web/src/helper/server-fetch.ts");
+  assert.match(requestService, /requesterPhone: canViewRequesterPhone/);
+  assert.match(requestService, /RequestAssignmentStatus\.ACCEPTED/);
+  assert.match(serverFetch, /privateEndpoint \|\| !isPublicEndpoint\(endpoint\)/);
+  assert.match(serverFetch, /isPublicEndpoint\(endpoint\) && !privateEndpoint/);
+});
+
 test("phone and email verification refresh persisted profile readiness", () => {
   const userService = source("apps/api/src/app/modules/user/user.service.ts");
   const authService = source("apps/api/src/app/modules/auth/auth.service.ts");

@@ -8,7 +8,6 @@ export const getHomepagePosts = async () => {
   try {
     const res = await serverFetch.get(
       "/posts/homepage?successLimit=6&donorLimit=8",
-      { cache: "no-store" },
     );
     return res.json();
   } catch {

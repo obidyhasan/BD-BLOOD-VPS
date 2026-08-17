@@ -13,19 +13,24 @@ import {
 
 type Props = {
   phone: string;
+  verifiedPhone?: string | null;
   phoneVerifiedAt?: string | null;
 };
 
-export function PhoneVerificationSection({ phone, phoneVerifiedAt }: Props) {
+const normalizePhone = (value: string) => value.replace(/\D/g, "");
+
+export function PhoneVerificationSection({ phone, verifiedPhone, phoneVerifiedAt }: Props) {
   const [otp, setOtp] = useState("");
   const [sendOtp, { isLoading: sending }] = useSendPhoneOtpMutation();
   const [verifyOtp, { isLoading: verifying }] = useVerifyPhoneOtpMutation();
 
-  const isVerified = Boolean(phoneVerifiedAt);
+  const isVerified = Boolean(
+    phoneVerifiedAt && normalizePhone(phone) === normalizePhone(verifiedPhone ?? ""),
+  );
 
   const handleSendOtp = async () => {
-    const normalized = phone.replace(/\s/g, "");
-    if (normalized.length < 11) {
+    const normalized = normalizePhone(phone);
+    if (!/^01[3-9]\d{8}$/.test(normalized)) {
       toast.error("Enter a valid phone number first.");
       return;
     }
@@ -41,7 +46,7 @@ export function PhoneVerificationSection({ phone, phoneVerifiedAt }: Props) {
   };
 
   const handleVerify = async () => {
-    const normalized = phone.replace(/\s/g, "");
+    const normalized = normalizePhone(phone);
     if (!otp.trim()) {
       toast.error("Enter the OTP code.");
       return;
@@ -94,9 +99,11 @@ export function PhoneVerificationSection({ phone, phoneVerifiedAt }: Props) {
         <Input
           placeholder="6-digit code"
           value={otp}
-          onChange={(e) => setOtp(e.target.value)}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
           className="h-9 max-w-[140px] rounded-xl font-mono text-sm"
           maxLength={6}
+          inputMode="numeric"
+          autoComplete="one-time-code"
         />
         <Button
           type="button"

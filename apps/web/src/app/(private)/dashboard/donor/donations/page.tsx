@@ -8,16 +8,37 @@ import { motion } from "motion/react";
 import { useGetMyDonationsQuery } from "@/redux/features/bloodDonations/bloodDonationsApi";
 import { useGetMyAchievementsQuery } from "@/redux/features/achievements/achievementsApi";
 import { format } from "date-fns";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function DonorDonationsPage() {
-  const { data, isLoading } = useGetMyDonationsQuery();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, refetch } = useGetMyDonationsQuery({
+    page,
+    limit: 10,
+    sortBy: "donationDate",
+    sortOrder: "desc",
+  });
+  const { data: verifiedData } = useGetMyDonationsQuery({
+    page: 1,
+    limit: 1,
+    verificationStatus: "VERIFIED",
+  });
   const { data: achievementsData } = useGetMyAchievementsQuery();
   const donations = data?.data ?? [];
   const achievements = achievementsData?.data ?? [];
 
-  const totalUnits = donations.length;
-  const CENTURION_GOAL = 25;
-  const progressPct = Math.min((totalUnits / CENTURION_GOAL) * 100, 100);
+  const verifiedUnits = verifiedData?.meta?.total ?? 0;
+  const nextAchievement = achievements
+    .filter((achievement) => !achievement.unlocked)
+    .sort((a, b) => a.thresholdValue - b.thresholdValue)[0];
+  const progressPct = nextAchievement
+    ? Math.min((verifiedUnits / nextAchievement.thresholdValue) * 100, 100)
+    : 100;
+  const totalPages = Math.max(
+    1,
+    data?.meta?.totalPage ?? Math.ceil((data?.meta?.total ?? 0) / 10),
+  );
 
   return (
     <div className="space-y-10">
@@ -51,6 +72,15 @@ export default function DonorDonationsPage() {
               <p className="text-xs font-medium text-muted-foreground mt-2">
                 Your donation history will appear here.
               </p>
+            </Card>
+          )}
+
+          {isError && (
+            <Card className="rounded-[2.5rem] border-border/40 p-10 text-center">
+              <p className="text-sm font-bold text-muted-foreground">Donation history could not be loaded.</p>
+              <Button className="mt-4 rounded-xl" variant="outline" onClick={() => refetch()}>
+                Try again
+              </Button>
             </Card>
           )}
 
@@ -111,8 +141,8 @@ export default function DonorDonationsPage() {
                         <p className="text-2xl font-black leading-none">
                           1 Unit
                         </p>
-                        <p className="text-[10px] font-black text-emerald-500 uppercase">
-                          Impacted 3 Lives
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">
+                          Donation record
                         </p>
                       </div>
                     </div>
@@ -120,6 +150,13 @@ export default function DonorDonationsPage() {
                 </Card>
               </motion.div>
             ))}
+          {!isLoading && !isError && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button variant="outline" className="rounded-xl" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</Button>
+              <span className="text-xs font-bold text-muted-foreground">Page {page} of {totalPages}</span>
+              <Button variant="outline" className="rounded-xl" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button>
+            </div>
+          )}
         </div>
 
         {/* Sidebar: Lifetime impact */}
@@ -132,9 +169,9 @@ export default function DonorDonationsPage() {
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-[10px] font-black text-muted-foreground uppercase opacity-60">
-                    Total Units
+                    Verified Units
                   </p>
-                  <p className="text-3xl font-black">{totalUnits}</p>
+                  <p className="text-3xl font-black">{verifiedUnits}</p>
                 </div>
                 <TrendingUp className="size-8 text-primary opacity-20" />
               </div>
@@ -145,9 +182,11 @@ export default function DonorDonationsPage() {
                 />
               </div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed">
-                {totalUnits < CENTURION_GOAL
-                  ? `You are ${CENTURION_GOAL - totalUnits} units away from the "Centurion Donor" platinum badge.`
-                  : `You have earned the "Centurion Donor" platinum badge! 🎉`}
+                {nextAchievement
+                  ? `${Math.max(0, nextAchievement.thresholdValue - verifiedUnits)} more verified donation${nextAchievement.thresholdValue - verifiedUnits === 1 ? "" : "s"} toward ${nextAchievement.title}.`
+                  : achievements.length
+                    ? "All active donation milestones are unlocked."
+                    : "Verified donation milestones will appear here."}
               </p>
             </div>
           </Card>

@@ -53,7 +53,10 @@ test("homepage national team and organization notices use dynamic authoritative 
     "../web/src/components/modules/Organization/PublicOrganizationProfile/PublicOrganizationProfile.tsx",
   );
 
-  assert.match(home, /getPublicLeadershipMembers\(\{ level: "EXECUTIVE" \}\)/);
+  assert.match(
+    home,
+    /getPublicLeadershipMembers\(\{ category: "COMMITTEE", level: "EXECUTIVE" \}\)/,
+  );
   assert.doesNotMatch(home, /getPublicDonors/);
   assert.match(team, /Who's Behind/);
   assert.match(team, /members\.slice\(0, 11\)/);

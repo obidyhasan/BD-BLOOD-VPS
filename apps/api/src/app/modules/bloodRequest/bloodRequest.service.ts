@@ -762,7 +762,19 @@ const getAssignmentForDonor = async (
   if (!assignment) {
     throw new ApiError(httpStatus.NOT_FOUND, "Assignment not found!");
   }
-  return assignment;
+  const canViewRequesterPhone =
+    assignment.status === RequestAssignmentStatus.ACCEPTED ||
+    assignment.status === RequestAssignmentStatus.DONATION_PENDING ||
+    assignment.status === RequestAssignmentStatus.DONATED;
+  return {
+    ...assignment,
+    request: {
+      ...assignment.request,
+      requesterPhone: canViewRequesterPhone
+        ? assignment.request.requesterPhone
+        : null,
+    },
+  };
 };
 
 const sendRequesterSms = async (

@@ -153,7 +153,7 @@ export default function DonorSettingsPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold uppercase text-muted-foreground">
-                    Text Messages (SMS via MiM SMS)
+                    Text message alerts
                   </Label>
                   <Switch
                     checked={notifySms}

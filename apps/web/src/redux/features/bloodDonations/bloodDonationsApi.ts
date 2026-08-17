@@ -35,6 +35,13 @@ export interface BloodDonationQueryParams {
   sortOrder?: "asc" | "desc";
 }
 
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPage?: number;
+}
+
 export interface CreateBloodDonationPayload {
   requestAssignmentId?: string;
   recipientName?: string;
@@ -50,7 +57,7 @@ export interface CreateBloodDonationPayload {
 export const bloodDonationsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getAllDonations: builder.query<
-      { success: boolean; meta: object; data: BloodDonation[] },
+      { success: boolean; meta: PaginationMeta; data: BloodDonation[] },
       BloodDonationQueryParams | void
     >({
       query: (params) => {
@@ -67,7 +74,7 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
     }),
 
     getMyDonations: builder.query<
-      { success: boolean; meta: object; data: BloodDonation[] },
+      { success: boolean; meta: PaginationMeta; data: BloodDonation[] },
       BloodDonationQueryParams | void
     >({
       query: (params) => {
@@ -139,7 +146,7 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { notes },
       }),
-      invalidatesTags: ["BloodDonations", "BloodRequests"],
+      invalidatesTags: ["BloodDonations", "BloodRequests", "Achievements", "Auth"],
     }),
 
     rejectDonation: builder.mutation<
@@ -163,7 +170,7 @@ export const bloodDonationsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { reason },
       }),
-      invalidatesTags: ["BloodDonations", "BloodRequests", "Achievements"],
+      invalidatesTags: ["BloodDonations", "BloodRequests", "Achievements", "Auth"],
     }),
 
     deleteDonation: builder.mutation<

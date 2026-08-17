@@ -41,7 +41,7 @@ export const mapApiBloodRequest = (
   apiId: r.id,
   id: index + 1,
   name: r.requesterName,
-  phone: r.requesterPhone,
+  phone: r.requesterPhone ?? "",
   bloodGroup: r.bloodGroup?.groupName ?? "—",
   hospital: r.hospitalName,
   quantity: `${r.requiredUnits} Bag${r.requiredUnits > 1 ? "s" : ""}`,

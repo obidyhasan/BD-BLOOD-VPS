@@ -58,7 +58,7 @@ export interface BloodRequest {
   id: string;
   referenceCode: string;
   requesterName: string;
-  requesterPhone: string;
+  requesterPhone: string | null;
   bloodGroupId: string;
   bloodGroup: { groupName: string };
   hospitalName: string;

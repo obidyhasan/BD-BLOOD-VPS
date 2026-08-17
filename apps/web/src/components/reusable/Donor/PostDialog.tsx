@@ -38,6 +38,7 @@ interface PostDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
+  donationOnly?: boolean;
 }
 
 function buildFormData(
@@ -79,6 +80,7 @@ export function PostDialog({
   open,
   onOpenChange,
   trigger,
+  donationOnly = false,
 }: PostDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
@@ -86,7 +88,9 @@ export function PostDialog({
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [type, setType] = useState<LegacyPost["type"]>("GENERAL");
+  const [type, setType] = useState<LegacyPost["type"]>(
+    donationOnly ? "RECAP" : "GENERAL",
+  );
   const [visibility, setVisibility] =
     useState<LegacyPost["visibility"]>("Public");
   const [galleryFiles, setGalleryFiles] = useState<FileWithPreview[]>([]);
@@ -131,7 +135,7 @@ export function PostDialog({
     } else {
       setTitle("");
       setContent("");
-      setType("GENERAL");
+      setType(donationOnly ? "RECAP" : "GENERAL");
       setVisibility("Public");
       setGalleryFiles([]);
       setDonationId("");
@@ -211,7 +215,9 @@ export function PostDialog({
               <DialogDescription className="text-base font-medium text-muted-foreground leading-relaxed max-w-lg mt-3">
                 {post
                   ? "Update your post to keep the information accurate."
-                  : "Share important alerts or updates with the community."}
+                  : donationOnly
+                    ? "Share a story linked to one of your verified donations."
+                    : "Share important alerts or updates with the community."}
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -268,7 +274,7 @@ export function PostDialog({
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-3">
+                {!donationOnly && <div className="space-y-3">
                   <Label className="text-xs font-bold uppercase text-muted-foreground  px-1">
                     Category
                   </Label>
@@ -298,7 +304,7 @@ export function PostDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </div>}
 
                 <div className="space-y-3">
                   <Label className="text-xs font-bold uppercase text-muted-foreground  px-1">

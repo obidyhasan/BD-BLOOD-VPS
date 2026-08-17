@@ -12,12 +12,10 @@ import {
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
-import { PostDialog } from "@/components/reusable/Donor/PostDialog";
 import { EditProfileDialog } from "./EditProfileDialog";
 import Link from "next/link";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -93,15 +91,16 @@ const DonorProfile = ({
   const { data: donationsData } = useGetMyDonationsQuery(undefined, {
     skip: !isDashboard,
   });
-  const recentDonations = donationsData?.data?.slice(0, 3) ?? [];
+  const verifiedDonations = (donationsData?.data ?? []).filter(
+    (donation) => donation.verificationStatus === "VERIFIED",
+  );
+  const recentDonations = verifiedDonations.slice(0, 3);
 
   const donor = isDashboard
     ? meData?.data
     : (donorData?.data ?? initialDonor ?? null);
-  const donationCount = donationsData?.data?.length ?? 0;
-  const fulfilledUnits = (donationsData?.data ?? []).filter(
-    (d) => d.verificationStatus === "VERIFIED",
-  ).length;
+  const donationCount = verifiedDonations.length;
+  const fulfilledUnits = verifiedDonations.length;
   const { data: myAchievementsData } = useGetMyAchievementsQuery(undefined, {
     skip: !isDashboard,
   });
@@ -232,14 +231,6 @@ const DonorProfile = ({
                     <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tighter leading-none">
                       {donor?.fullName ?? "Donor"}
                     </h1>
-                    <div className="hidden sm:block">
-                      <Badge
-                        variant="primary"
-                        className="rounded-full px-3 py-1 text-[10px] font-black uppercase  shadow-xl shadow-primary/10"
-                      >
-                        Elite Life-Saver
-                      </Badge>
-                    </div>
                   </div>
                   <p className="text-primary font-bold tracking-wide uppercase text-xs">
                     {donor?.availabilityStatus === "AVAILABLE"
@@ -250,8 +241,7 @@ const DonorProfile = ({
                 </div>
 
                 <p className="text-muted-foreground font-medium max-w-xl leading-relaxed">
-                  {donor?.bio ??
-                    "Life is precious, and shared blood connects us all. Proud to be part of the BD BLOOD mission to save lives one pint at a time."}
+                  {donor?.bio ?? "No biography added yet."}
                 </p>
               </div>
             </div>
@@ -269,7 +259,7 @@ const DonorProfile = ({
                   Location
                 </span>
                 <span className="text-sm font-bold text-foreground">
-                  {[donor?.district?.name, donor?.division?.name]
+                  {[donor?.upazila?.name, donor?.district?.name, donor?.division?.name]
                     .filter(Boolean)
                     .join(", ") || "—"}
                 </span>
@@ -405,7 +395,7 @@ const DonorProfile = ({
       {isDashboard && donor && (
         <DonationShareCard
           donorName={donor.fullName}
-          profilePhoto={donor.profilePhoto}
+          profilePhoto={profilePhotoSrc}
           verifiedDonations={fulfilledUnits}
           achievement={achievements.find((item) => item.unlocked)?.title}
         />
@@ -541,12 +531,10 @@ const DonorProfile = ({
               Explore <span className="text-primary">Posts</span>
             </h3>
             <p className="text-muted-foreground font-medium text-lg leading-relaxed max-w-xl">
-              Share your donation journey, post urgent requirements, and inspire
-              others in your circle.
+              Share a verified donation journey and inspire others in your circle.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {isDashboard && <PostDialog />}
             {isDashboard ? (
               <Link href={"/dashboard/donor/posts"}>
                 <Button className="w-full sm:w-auto h-14 px-6 rounded-2xl font-black text-xs uppercase  bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
@@ -567,7 +555,7 @@ const DonorProfile = ({
           <div className="absolute top-1/2 -left-4 -translate-y-1/2 w-48 h-48 bg-primary/20 rounded-full blur-[100px] -z-10" />
           <Carousel className="w-full">
             <CarouselContent className="-ml-8">
-              {posts.map((post, index) => (
+              {posts.map((post) => (
                 <CarouselItem
                   className="pl-8 sm:basis-1/2 lg:basis-1/3"
                   key={post.id}

@@ -44,7 +44,9 @@ import { resolveProfilePhoto } from "@/lib/profilePhoto";
 const editProfileSchema = z.object({
   name: z.string().min(2, "Name is required"),
   email: z.string().email("Valid email is required"),
-  phone: z.string().min(11, "Valid phone number is required"),
+  phone: z
+    .string()
+    .regex(/^01[3-9]\d{8}$/, "Enter a valid Bangladesh mobile number"),
   bloodGroupId: z.string().min(1, "Blood group is required"),
   divisionId: z.string().min(1, "Division is required"),
   districtId: z.string().min(1, "District is required"),
@@ -321,6 +323,8 @@ const EditProfileForm = ({ dialogOpen = true }: { dialogOpen?: boolean }) => {
               <FormControl>
                 <Input
                   placeholder="01XXXXXXXXX"
+                  inputMode="tel"
+                  autoComplete="tel"
                   className="h-14 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border-border/40 focus:ring-primary/20 font-bold"
                   {...field}
                 />
@@ -328,6 +332,7 @@ const EditProfileForm = ({ dialogOpen = true }: { dialogOpen?: boolean }) => {
               <FormMessage />
               <PhoneVerificationSection
                 phone={field.value}
+                verifiedPhone={me.phone}
                 phoneVerifiedAt={me.phoneVerifiedAt}
               />
             </FormItem>

@@ -135,6 +135,7 @@ const DonorPosts = () => {
 
           <div className="flex-1 xl:flex-none">
             <PostDialog
+              donationOnly
               trigger={
                 <Button
                   disabled={!meData?.data?.capabilities?.canCreateDonationPost}

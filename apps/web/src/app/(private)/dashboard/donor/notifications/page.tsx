@@ -43,13 +43,10 @@ import {
 import { useGetMeQuery } from "@/redux/features/auth/authApi";
 import { useCreateDonationMutation } from "@/redux/features/bloodDonations/bloodDonationsApi";
 import { formatDistanceToNow } from "date-fns";
-import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 
 const isAssignmentNotification = (n: Notification) =>
   n.relatedType === "REQUEST_ASSIGNMENT" && !!n.relatedId;
 
-const isPendingAssignmentNotification = (n: Notification) =>
-  isAssignmentNotification(n) && !n.isRead;
 
 const addressText = (request?: {
   upazila?: { name: string };
@@ -78,7 +75,7 @@ const NotificationItem = ({
   acceptBlockedReason?: string | null;
   isSmall?: boolean;
 }) => {
-  const assignment = isPendingAssignmentNotification(n);
+  const assignment = isAssignmentNotification(n);
 
   return (
     <motion.div
@@ -273,7 +270,10 @@ function AssignmentDetailsDialog({
         ) : request ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
             <Detail label="Patient" value={request.requesterName} />
-            <Detail label="Phone" value={request.requesterPhone} />
+            <Detail
+              label="Phone"
+              value={request.requesterPhone ?? "Available after acceptance"}
+            />
             <Detail label="Blood Group" value={request.bloodGroup?.groupName} />
             <Detail label="Required Bags" value={String(request.requiredUnits)} />
             <Detail label="Hospital" value={request.hospitalName} />
@@ -335,9 +335,9 @@ function Detail({ label, value, wide }: { label: string; value?: string | null; 
   );
 }
 
-export default function DonorNotificationsPage() {
-  useNotificationSocket();
-  const { data, isLoading, refetch: refetchNotifications } = useGetMyNotificationsQuery();
+export function DonorNotificationCenter({ requestsOnly = false }: { requestsOnly?: boolean }) {
+  const { data, isLoading, isError, refetch: refetchNotifications } =
+    useGetMyNotificationsQuery({ limit: 50 });
   const { data: meData } = useGetMeQuery();
   const [markRead] = useMarkNotificationReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
@@ -347,7 +347,10 @@ export default function DonorNotificationsPage() {
   const [withdrawAssignment] = useWithdrawRequestAssignmentMutation();
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
-  const notifications = useMemo(() => data?.data ?? [], [data?.data]);
+  const notifications = useMemo(
+    () => (data?.data ?? []).filter((item) => !requestsOnly || isAssignmentNotification(item)),
+    [data?.data, requestsOnly],
+  );
   const acceptBlockedReason = meData?.data?.capabilities?.canAcceptBloodRequests
     ? null
     : meData?.data?.profileStatus === "INCOMPLETE"
@@ -449,9 +452,9 @@ export default function DonorNotificationsPage() {
     <div className="space-y-10">
       <DashboardHeader
         variant="clinical"
-        title="My Notifications"
-        subtitle="View your latest alerts and blood requests here."
-        badge="Inbox"
+        title={requestsOnly ? "Blood Requests" : "Notifications"}
+        subtitle={requestsOnly ? "Review requests sent to you and respond safely." : "View your latest alerts and blood requests here."}
+        badge={requestsOnly ? "Requests" : "Inbox"}
       />
 
       {isLoading ? (
@@ -459,13 +462,18 @@ export default function DonorNotificationsPage() {
           <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
           <p className="text-xs font-black uppercase  text-muted-foreground">Finding messages...</p>
         </div>
+      ) : isError ? (
+        <Card className="rounded-[2.5rem] border-border/40 p-12 text-center">
+          <p className="text-sm font-bold text-muted-foreground">This page could not be loaded.</p>
+          <Button className="mt-4 rounded-xl" variant="outline" onClick={() => refetchNotifications()}>Try again</Button>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 mt-10">
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between px-2">
               <h2 className="text-sm font-black uppercase  flex items-center gap-3">
                 <div className="size-2 rounded-full bg-red-500 animate-pulse" />
-                New Messages
+                {requestsOnly ? "Open Requests" : "New Messages"}
               </h2>
               <Badge variant="outline" className="rounded-full border-border/40 font-black text-[9px] uppercase  px-3">
                 {unread.length} New
@@ -478,8 +486,8 @@ export default function DonorNotificationsPage() {
                   <div className="size-20 rounded-[2.5rem] bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center mx-auto mb-6 opacity-30">
                     <Inbox className="size-10" />
                   </div>
-                  <h3 className="text-lg font-black uppercase tracking-tight opacity-40">No New Notifications</h3>
-                  <p className="text-xs font-medium text-muted-foreground mt-2">You have seen all your messages.</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight opacity-40">{requestsOnly ? "No Open Requests" : "No New Notifications"}</h3>
+                  <p className="text-xs font-medium text-muted-foreground mt-2">{requestsOnly ? "New blood requests sent to you will appear here." : "You have seen all your messages."}</p>
                 </Card>
               ) : (
                 <AnimatePresence mode="popLayout">
@@ -529,7 +537,8 @@ export default function DonorNotificationsPage() {
                       onAccept={(notification) => notification.relatedId && handleAcceptAssignment(notification.relatedId, notification.id)}
                       onReject={(notification) => notification.relatedId && handleRejectAssignment(notification.relatedId, notification.id)}
                       onOpenAssignment={setAssignmentId}
-                      isSmall={true}
+                      isSmall={!requestsOnly}
+                      acceptBlockedReason={acceptBlockedReason}
                     />
                   ))}
                 </AnimatePresence>
@@ -550,4 +559,8 @@ export default function DonorNotificationsPage() {
       />
     </div>
   );
+}
+
+export default function DonorNotificationsPage() {
+  return <DonorNotificationCenter />;
 }

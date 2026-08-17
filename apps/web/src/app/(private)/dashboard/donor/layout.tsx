@@ -24,11 +24,13 @@ import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 import { useGetMyNotificationsQuery } from "@/redux/features/notifications/notificationsApi";
 
 const routeNames: Record<string, string> = {
-  "/dashboard/donor": "My Profile",
-  "/dashboard/donor/donations": "My Donations",
+  "/dashboard/donor": "Profile",
+  "/dashboard/donor/donations": "Donation History",
+  "/dashboard/donor/requests": "Blood Requests",
   "/dashboard/donor/notifications": "Notifications",
-  "/dashboard/donor/posts": "Community Posts",
-  "/dashboard/donor/settings": "Account Safety",
+  "/dashboard/donor/posts": "Posts",
+  "/dashboard/donor/reports": "Reports",
+  "/dashboard/donor/settings": "Settings",
 };
 
 export default function DonorLayout({

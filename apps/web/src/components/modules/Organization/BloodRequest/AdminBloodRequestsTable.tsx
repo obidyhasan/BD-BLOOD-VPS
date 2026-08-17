@@ -340,7 +340,7 @@ export function AdminBloodRequestsTable({ data }: { data: BloodRequest[] }) {
       const matchesSearch =
         !s ||
         r.requesterName.toLowerCase().includes(s) ||
-        r.requesterPhone.includes(s) ||
+        r.requesterPhone?.includes(s) ||
         r.hospitalName.toLowerCase().includes(s) ||
         r.organization?.name?.toLowerCase().includes(s) ||
         r.bloodGroup?.groupName?.toLowerCase().includes(s);

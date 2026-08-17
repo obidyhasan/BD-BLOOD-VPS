@@ -193,6 +193,38 @@ const assertCanAssociateWithOrganization = async (
   }
 };
 
+const assertCanAuthorOrganizationPost = async (
+  user: IJWTPayload,
+  donorId: string,
+  organizationId?: string | null,
+) => {
+  if (user.role === Role.ADMIN) return;
+  if (!organizationId) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Personal donor posts must be linked to an unused verified donation.",
+    );
+  }
+  const membership = await prisma.organizationMember.findFirst({
+    where: {
+      donorId,
+      organizationId,
+      status: OrganizationMemberStatus.ACTIVE,
+      isDeleted: false,
+      position: {
+        level: { in: [PositionLevel.EXECUTIVE, PositionLevel.MANAGEMENT] },
+      },
+    },
+    select: { id: true },
+  });
+  if (!membership) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Only organization managers can publish organization updates.",
+    );
+  }
+};
+
 const createPost = async (
   user: IJWTPayload,
   payload: any,
@@ -234,6 +266,12 @@ const createPost = async (
       );
     }
     donationId = verifiedDonation.id;
+  } else {
+    await assertCanAuthorOrganizationPost(
+      user,
+      donor.id,
+      payload.organizationId,
+    );
   }
 
   const slug = await uniquePostSlug(payload.title);
@@ -621,6 +659,15 @@ const updatePost = async (
       user,
       donor.id,
       payload.organizationId,
+    );
+  }
+
+  const targetPostType = payload.postType ?? existing.postType;
+  if (!PERSONAL_DONATION_POST_TYPES.includes(targetPostType)) {
+    await assertCanAuthorOrganizationPost(
+      user,
+      donor.id,
+      payload.organizationId ?? existing.organizationId,
     );
   }
 

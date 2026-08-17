@@ -79,7 +79,9 @@ test("homepage posts are limited, randomized, public, approved, and privacy-safe
   assert.match(controller, /successLimit = Number\(req\.query\.successLimit\) \|\| 6/);
   assert.match(controller, /donorLimit = Number\(req\.query\.donorLimit\) \|\| 8/);
   assert.match(routes, /router\.get\("\/homepage", PostController\.getHomepagePosts\)/);
-  assert.match(homeService, /cache: "no-store"/);
+  assert.doesNotMatch(homeService, /cache: "no-store"/);
+  const serverFetch = await readWeb("helper/server-fetch.ts");
+  assert.match(serverFetch, /endpoint\.startsWith\("\/posts"\)\) return 60/);
 });
 
 test("medical homepage data is limited, randomized, and exposes only public contact fields", async () => {

@@ -48,6 +48,8 @@ const isPrivateEndpoint = (endpoint: string) =>
   endpoint.startsWith("/blood-donations") ||
   endpoint.startsWith("/notifications") ||
   endpoint.startsWith("/reports") ||
+  (endpoint.startsWith("/blood-requests") &&
+    !endpoint.startsWith("/blood-requests/track/")) ||
   (endpoint.startsWith("/analytics/") &&
     !endpoint.startsWith("/analytics/public-stats")) ||
   endpoint.startsWith("/posts/my") ||
@@ -146,8 +148,8 @@ const getCacheDuration = (endpoint: string): number => {
   if (endpoint.startsWith("/policies")) return 24 * 3600;
   if (endpoint.startsWith("/location/")) return 24 * 3600;
   if (endpoint.startsWith("/blogs")) return 1800;
-  if (endpoint.startsWith("/posts")) return 1800;
-  if (endpoint.startsWith("/organizations")) return 3600;
+  if (endpoint.startsWith("/posts")) return 60;
+  if (endpoint.startsWith("/organizations")) return 300;
   if (endpoint.startsWith("/analytics/public-stats")) return 300;
   if (endpoint.startsWith("/analytics/stats")) return 300;
   // Time-sensitive: an URGENT request going stale in the public feed for a
@@ -239,9 +241,10 @@ const serverFetchHelper = async (
   const cacheTags = getCacheTagsForEndpoint(endpoint, method);
   const cacheDuration = getCacheDuration(endpoint);
 
-  const accessToken = isPublicEndpoint(endpoint)
-    ? null
-    : await getCookie("accessToken");
+  const privateEndpoint = isPrivateEndpoint(endpoint);
+  const accessToken = privateEndpoint || !isPublicEndpoint(endpoint)
+    ? await getCookie("accessToken")
+    : null;
 
   const fetchOptions: RequestInit = {
     headers: buildHeaders(headers, accessToken),
@@ -252,7 +255,7 @@ const serverFetchHelper = async (
   if (method === "GET") {
     if (
       fetchOptions.cache === "no-store" ||
-      isPrivateEndpoint(endpoint) ||
+      privateEndpoint ||
       !isPublicEndpoint(endpoint)
     ) {
       fetchOptions.cache = "no-store";
@@ -275,7 +278,7 @@ const serverFetchHelper = async (
   if (
     response.status !== 401 ||
     isAuthEndpoint(endpoint) ||
-    isPublicEndpoint(endpoint)
+    (isPublicEndpoint(endpoint) && !privateEndpoint)
   ) {
     return response;
   }

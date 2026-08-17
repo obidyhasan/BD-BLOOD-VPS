@@ -1,8 +1,9 @@
 import DonorProfile from "@/components/modules/Donor/Profile/DonorProfile";
-import { getPublicDonorById, getPublicDonorBySlug } from "@/services/user";
+import { getPublicDonorBySlug } from "@/services/user";
 import { getPublicPosts } from "@/services/post";
 import { buildEntityMetadata, notFoundMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 export const generateMetadata = async ({
   params,
@@ -10,10 +11,7 @@ export const generateMetadata = async ({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> => {
   const { slug } = await params;
-  const donor =
-    (await getPublicDonorBySlug(slug))?.data ??
-    (await getPublicDonorById(slug))?.data ??
-    null;
+  const donor = (await getPublicDonorBySlug(slug))?.data ?? null;
   if (!donor) return notFoundMetadata("Donor");
 
   const locationBits = [donor.upazila?.name, donor.district?.name].filter(
@@ -40,10 +38,9 @@ export default async function Page({
 }) {
   const { slug } = await params;
   const donorRes = await getPublicDonorBySlug(slug);
-  const donor =
-    donorRes?.data ?? (await getPublicDonorById(slug))?.data ?? null;
-  const donorId = donor?.id ?? slug;
-  const postsRes = await getPublicPosts({ limit: 50, donorId });
+  const donor = donorRes?.data ?? null;
+  if (!donor) notFound();
+  const postsRes = await getPublicPosts({ limit: 24, donorId: donor.id });
 
   return (
     <DonorProfile

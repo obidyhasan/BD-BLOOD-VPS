@@ -3,7 +3,6 @@
 import {
   Bell,
   User,
-  Settings,
   ChevronRight,
   Droplets,
   ClipboardList,
@@ -36,22 +35,34 @@ import {
 import { BDLogo } from "@/components/ui/bd-logo";
 import { NavUser } from "@/components/ui/nav-user";
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useGetMyMembershipQuery } from "@/redux/features/organizations/organizationsApi";
 
-const navItems = [
+type DonorNavItem = {
+  title: string;
+  icon: LucideIcon;
+  url?: string;
+  badge?: string;
+  items?: { title: string; url: string }[];
+};
+
+const navItems: DonorNavItem[] = [
   {
     title: "Profile",
     icon: User,
     url: "/dashboard/donor",
   },
   {
-    title: "History",
+    title: "Blood Requests",
+    icon: ClipboardList,
+    url: "/dashboard/donor/requests",
+  },
+  {
+    title: "Donation History",
     icon: Droplets,
-    items: [
-      { title: "My Donations", url: "/dashboard/donor/donations" },
-    ],
+    url: "/dashboard/donor/donations",
   },
   {
     title: "Notifications",
@@ -61,12 +72,12 @@ const navItems = [
   },
   {
     title: "Posts",
-    icon: ClipboardList,
+    icon: Fingerprint,
     url: "/dashboard/donor/posts",
   },
   {
     title: "Reports",
-    icon: Fingerprint,
+    icon: ClipboardList,
     url: "/dashboard/donor/reports",
   },
   {
@@ -82,7 +93,7 @@ export function DonorSidebar({
   const donorUser = useSessionUser();
   const pathname = usePathname();
   const { data: membershipData } = useGetMyMembershipQuery();
-  const visibleNavItems = membershipData?.data?.canAccessDashboard
+  const visibleNavItems: DonorNavItem[] = membershipData?.data?.canAccessDashboard
     ? [
       ...navItems,
       {

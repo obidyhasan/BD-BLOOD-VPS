@@ -39,7 +39,7 @@ export default async function HomePage() {
     getFaqs({ active: true, limit: 12, sortBy: "order", sortOrder: "asc" }),
     getMedicalAds({ limit: 8 }),
     getDivisions(),
-    getPublicLeadershipMembers({ level: "EXECUTIVE" }),
+    getPublicLeadershipMembers({ category: "COMMITTEE", level: "EXECUTIVE" }),
   ]);
 
   return (

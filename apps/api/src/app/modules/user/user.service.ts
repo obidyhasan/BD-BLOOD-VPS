@@ -15,7 +15,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { IJWTPayload } from "../../types";
-import { toSlug } from "../../shared/slugHelper";
+import { isUuid, toSlug } from "../../shared/slugHelper";
 import { cacheHelper } from "../../helper/cacheHelper";
 import {
   resolveDonorAffiliation,
@@ -391,7 +391,18 @@ const getMyProfile = async (user: IJWTPayload) => {
       profileInfo.upazila?.districtId === profileInfo.districtId &&
       profileInfo.district?.divisionId === profileInfo.divisionId,
   );
-  const affiliation = await resolveDonorAffiliation(prisma, profileInfo.id);
+  const [affiliation, eligibleDonation] = await Promise.all([
+    resolveDonorAffiliation(prisma, profileInfo.id),
+    prisma.bloodDonation.findFirst({
+      where: {
+        donorId: profileInfo.id,
+        isDeleted: false,
+        verificationStatus: "VERIFIED",
+        post: null,
+      },
+      select: { id: true },
+    }),
+  ]);
   const facts = buildProfileFacts(
     profileInfo,
     Boolean(affiliation),
@@ -405,7 +416,9 @@ const getMyProfile = async (user: IJWTPayload) => {
       (profileInfo.organization.position.level === PositionLevel.EXECUTIVE ||
         profileInfo.organization.position.level === PositionLevel.MANAGEMENT),
   );
-  capabilities.canCreateDonationPost = false;
+  capabilities.canCreateDonationPost = Boolean(
+    capabilities.canCreateDonationPost && eligibleDonation,
+  );
 
   const { _count, ...profile } = profileInfo;
 
@@ -866,7 +879,7 @@ const getPublicDonorById = async (id: string) => {
 
 const getPublicDonorBySlug = async (slug: string) => {
   const donor = await prisma.donor.findFirst({
-    where: { slug, ...publicDonorWhere },
+    where: { ...(isUuid(slug) ? { id: slug } : { slug }), ...publicDonorWhere },
     select: publicDonorSelect,
   });
 
