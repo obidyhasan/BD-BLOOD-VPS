@@ -12,13 +12,9 @@ import {
   ChevronRight,
   AlertCircle,
   Edit3,
-  Eye,
-  Plus,
-  ShieldCheck,
   Briefcase,
   Users2,
   Activity,
-  ArrowUpRight
 } from "lucide-react";
 import {
   useGetAllPositionsQuery,
@@ -37,15 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,

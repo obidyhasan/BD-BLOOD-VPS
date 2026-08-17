@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { AccountStatus, BlogStatus, Prisma } from "@prisma/client";
+import { BlogStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
@@ -8,6 +8,7 @@ import { IJWTPayload } from "../../types";
 import { blogSearchableFields } from "./blog.constant";
 import { isUuid, toSlug } from "../../shared/slugHelper";
 import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 const uniqueBlogSlug = async (title: string, excludeId?: string) => {
   let base = toSlug(title) || "blog";
@@ -39,17 +40,6 @@ const toPublicBlog = <
   return { ...blog, author: publicAuthor };
 };
 
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted)
-    throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
-
 const blogSortByMap: Record<string, keyof Prisma.BlogOrderByWithRelationInput> =
   {
     created_at: "createdAt",
@@ -78,7 +68,7 @@ const normalizeBlogSortBy = (
 };
 
 const createBlog = async (user: IJWTPayload, payload: any) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   if (user.role !== "ADMIN") {
     if (!payload.organizationId) {
@@ -230,7 +220,7 @@ const updateBlog = async (
   id: string,
   payload: Prisma.BlogUncheckedUpdateInput,
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.blog.findUnique({
     where: { id, isDeleted: false },
@@ -263,7 +253,7 @@ const updateBlog = async (
 };
 
 const updateBlogStatus = async (user: IJWTPayload, id: string, status: BlogStatus) => {
-  const reviewer = await getRequesterDonor(user);
+  const reviewer = await getActiveActorDonor(user);
   const existing = await prisma.blog.findUnique({
     where: { id, isDeleted: false },
   });
@@ -281,7 +271,7 @@ const updateBlogStatus = async (user: IJWTPayload, id: string, status: BlogStatu
 };
 
 const deleteBlog = async (user: IJWTPayload, id: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const existing = await prisma.blog.findUnique({
     where: { id, isDeleted: false },
   });

@@ -1,20 +1,11 @@
 import httpStatus from "http-status";
-import { AccountStatus, Prisma, ReportStatus, ReportTargetType } from "@prisma/client";
+import { Prisma, ReportStatus, ReportTargetType } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
-
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted) throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 const assertTargetExists = async (targetType: ReportTargetType, targetId: string) => {
   switch (targetType) {
@@ -44,7 +35,7 @@ const assertTargetExists = async (targetType: ReportTargetType, targetId: string
 };
 
 const createReport = async (user: IJWTPayload, payload: any) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   await assertTargetExists(payload.targetType, payload.targetId);
 
@@ -89,7 +80,7 @@ const getAllReports = async (params: IGenericFilters, options: IOptions) => {
 };
 
 const getMyReports = async (user: IJWTPayload, params: IGenericFilters, options: IOptions) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   return getAllReports({ ...params, reportedBy: donor.id }, options);
 };
 

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import {
   Trash2,
   Eye,
-  Plus,
   Search,
   ChevronLeft,
   ChevronRight,

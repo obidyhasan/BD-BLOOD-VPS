@@ -1,4 +1,4 @@
-/** Tag-based revalidation (mirrors Grocery Mart `CACHE_TAGS`). */
+/** Shared tag names for BD Blood server reads and mutation invalidation. */
 export const CACHE_TAGS = {
   POSTS: "posts",
   POST: (slugOrId: string) => `post-${slugOrId}`,

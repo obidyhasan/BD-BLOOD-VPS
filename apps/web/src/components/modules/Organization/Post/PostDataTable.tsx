@@ -39,7 +39,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Layers,
 } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";

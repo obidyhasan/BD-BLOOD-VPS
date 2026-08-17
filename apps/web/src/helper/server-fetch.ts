@@ -23,6 +23,7 @@ const isPublicEndpoint = (endpoint: string) =>
   endpoint.startsWith("/blogs") ||
   endpoint.startsWith("/galleries") ||
   endpoint.startsWith("/events") ||
+  endpoint.startsWith("/faqs") ||
   endpoint.startsWith("/policies") ||
   endpoint.startsWith("/organizations") ||
   endpoint.startsWith("/organization-members/public/") ||
@@ -61,6 +62,11 @@ const isPrivateEndpoint = (endpoint: string) =>
   endpoint.startsWith("/organization-members/leave") ||
   endpoint.startsWith("/organization-members/assign") ||
   endpoint.startsWith("/organizations/membership");
+
+const isAnonymousMutation = (endpoint: string) =>
+  isAuthEndpoint(endpoint) ||
+  endpoint === "/blood-requests" ||
+  endpoint === "/contact";
 
 const getCacheTagsForEndpoint = (
   endpoint: string,
@@ -140,6 +146,8 @@ const getCacheTagsForEndpoint = (
   if (endpoint.startsWith("/analytics/public-stats"))
     return [CACHE_TAGS.ANALYTICS];
   if (endpoint.startsWith("/analytics/stats")) return [CACHE_TAGS.ANALYTICS];
+  if (endpoint.startsWith("/location/")) return [CACHE_TAGS.LOCATION];
+  if (endpoint.startsWith("/blood/groups")) return [CACHE_TAGS.BLOOD_GROUPS];
 
   return [];
 };
@@ -242,7 +250,11 @@ const serverFetchHelper = async (
   const cacheDuration = getCacheDuration(endpoint);
 
   const privateEndpoint = isPrivateEndpoint(endpoint);
-  const accessToken = privateEndpoint || !isPublicEndpoint(endpoint)
+  const requiresAuthentication =
+    privateEndpoint ||
+    !isPublicEndpoint(endpoint) ||
+    (method !== "GET" && !isAnonymousMutation(endpoint));
+  const accessToken = requiresAuthentication
     ? await getCookie("accessToken")
     : null;
 
@@ -278,7 +290,7 @@ const serverFetchHelper = async (
   if (
     response.status !== 401 ||
     isAuthEndpoint(endpoint) ||
-    (isPublicEndpoint(endpoint) && !privateEndpoint)
+    !requiresAuthentication
   ) {
     return response;
   }

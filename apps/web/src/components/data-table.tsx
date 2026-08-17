@@ -2,41 +2,8 @@
 
 import * as React from "react";
 import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type UniqueIdentifier,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronsLeft,
-  IconChevronsRight,
-  IconCircleCheckFilled,
-  IconDotsVertical,
-  IconGripVertical,
-  IconLayoutColumns,
-  IconLoader,
-  IconPlus,
-} from "@tabler/icons-react";
-import {
   flexRender,
   getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
@@ -50,32 +17,6 @@ import {
 import { z } from "zod";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -85,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
 export const schema = z.object({
   id: z.number(),
@@ -96,21 +37,6 @@ export const schema = z.object({
   limit: z.string(),
   reviewer: z.string(),
 });
-
-function DragHandle({ id }: { id: number }) {
-  const { attributes, listeners } = useSortable({ id });
-  return (
-    <Button
-      {...attributes}
-      {...listeners}
-      variant="ghost"
-      size="icon"
-      className="text-muted-foreground size-7 hover:bg-transparent cursor-grab"
-    >
-      <IconGripVertical className="size-3" />
-    </Button>
-  );
-}
 
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
 
@@ -143,9 +69,9 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <Badge variant="outline" className={`rounded-full px-3 py-1 text-[9px] font-black uppercase  border border-transparent ${row.original.status === 'Done' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
         }`}>
         {row.original.status === "Done" ? (
-          <IconCircleCheckFilled className="size-3 mr-1" />
+          <CheckCircle2 className="size-3 mr-1" />
         ) : (
-          <IconLoader className="size-3 mr-1 animate-spin" />
+          <Loader2 className="size-3 mr-1 animate-spin" />
         )}
         {row.original.status}
       </Badge>
@@ -175,13 +101,10 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
 
 ];
 
-function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
-  const { transform, transition, setNodeRef, isDragging } = useSortable({ id: row.original.id });
+function DataRow({ row }: { row: Row<z.infer<typeof schema>> }) {
   return (
     <TableRow
-      ref={setNodeRef}
-      className={`h-20 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition-colors ${isDragging ? "opacity-50 z-10 relative" : ""}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className="h-20 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 transition-colors"
     >
       {row.getVisibleCells().map((cell) => (
         <TableCell key={cell.id}>
@@ -193,15 +116,12 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
 }
 
 export function DataTable({ data: initialData }: { data: z.infer<typeof schema>[] }) {
-  const [data, setData] = React.useState(() => initialData);
+  const [data] = React.useState(() => initialData);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
-  const sortableId = React.useId();
-  const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor), useSensor(KeyboardSensor));
-  const dataIds = React.useMemo<UniqueIdentifier[]>(() => data?.map(({ id }) => id) || [], [data]);
 
   const table = useReactTable({
     data,
@@ -218,8 +138,6 @@ export function DataTable({ data: initialData }: { data: z.infer<typeof schema>[
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
   const [activeTab, setActiveTab] = React.useState("requests");
@@ -268,7 +186,7 @@ export function DataTable({ data: initialData }: { data: z.infer<typeof schema>[
                 {filteredTable.getRowModel().rows?.length ? (
                   <>
                     {filteredTable.getRowModel().rows.map((row) => (
-                      <DraggableRow key={row.id} row={row} />
+                  <DataRow key={row.id} row={row} />
                     ))}
                   </>
                 ) : (

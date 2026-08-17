@@ -44,7 +44,7 @@ const AdminPostsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const { data, isLoading } = useGetAdminPostsQuery({ limit: 500 });
-  const posts = data?.data ?? [];
+  const posts = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filtered = useMemo(() => {
     return posts.filter((p) => {

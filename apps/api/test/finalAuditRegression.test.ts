@@ -45,8 +45,26 @@ test("request contact and private server reads respect the donor authorization b
   const serverFetch = source("apps/web/src/helper/server-fetch.ts");
   assert.match(requestService, /requesterPhone: canViewRequesterPhone/);
   assert.match(requestService, /RequestAssignmentStatus\.ACCEPTED/);
-  assert.match(serverFetch, /privateEndpoint \|\| !isPublicEndpoint\(endpoint\)/);
-  assert.match(serverFetch, /isPublicEndpoint\(endpoint\) && !privateEndpoint/);
+  assert.match(serverFetch, /const requiresAuthentication =/);
+  assert.match(serverFetch, /method !== "GET" && !isAnonymousMutation\(endpoint\)/);
+  assert.match(serverFetch, /endpoint === "\/blood-requests"/);
+  assert.match(serverFetch, /endpoint === "\/contact"/);
+  assert.match(serverFetch, /privateEndpoint \|\|/);
+  assert.match(serverFetch, /endpoint\.startsWith\("\/faqs"\)/);
+  assert.match(serverFetch, /CACHE_TAGS\.LOCATION/);
+  assert.match(serverFetch, /CACHE_TAGS\.BLOOD_GROUPS/);
+});
+
+test("system notification broadcasts use bounded cursor batches", () => {
+  const notificationService = source(
+    "apps/api/src/app/modules/notification/notification.service.ts",
+  );
+
+  assert.match(notificationService, /const batchSize = 500/);
+  assert.match(notificationService, /cursor: \{ id: cursor \}, skip: 1/);
+  assert.match(notificationService, /notification\.createMany/);
+  assert.match(notificationService, /return \{ count \}/);
+  assert.doesNotMatch(notificationService, /return \{ count, notifications \}/);
 });
 
 test("phone and email verification refresh persisted profile readiness", () => {

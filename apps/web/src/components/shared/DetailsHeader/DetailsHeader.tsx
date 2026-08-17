@@ -19,13 +19,13 @@ export const DetailsHeader = ({
   return (
     <div className="bg-gradient-to-b from-emerald-50/50 to-white dark:from-zinc-900/50 dark:to-zinc-950 border-b border-border/40 pt-28 pb-10 mb-10">
       <div className="max-w-7xl mx-auto px-6 space-y-6">
-        {/* <Link
+        <Link
           href={backLink}
           className="inline-flex items-center gap-2 text-xs font-black uppercase  text-muted-foreground hover:text-primary transition-colors group"
         >
           <MoveLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
           {backText}
-        </Link> */}
+        </Link>
 
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
           <div className="space-y-4">

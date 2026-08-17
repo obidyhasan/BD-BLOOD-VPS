@@ -7,6 +7,7 @@ import { seedAchievements } from "./app/seed/achievementSeed";
 import { seedCanonicalOrganizations } from "./app/seed/organizationSeed";
 import { initSocket } from "./app/shared/socket";
 import { prisma } from "./app/shared/prisma";
+import { closeRedis } from "./app/shared/redis";
 
 async function bootstrap() {
   let server: ReturnType<typeof createServer>;
@@ -40,7 +41,7 @@ async function bootstrap() {
       }
       server.close(async () => {
         try {
-          await prisma.$disconnect();
+          await Promise.all([prisma.$disconnect(), closeRedis()]);
         } catch (error) {
           console.error("Error disconnecting Prisma during shutdown:", error);
         }

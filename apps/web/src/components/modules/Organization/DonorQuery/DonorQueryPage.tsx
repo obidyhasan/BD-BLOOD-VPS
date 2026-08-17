@@ -30,12 +30,9 @@ import {
   MessageSquare,
   Newspaper,
   AlertTriangle,
-  ShieldCheck,
-  Eye,
   CheckCircle2,
   XCircle,
   Activity,
-  Info,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, useMemo } from "react";

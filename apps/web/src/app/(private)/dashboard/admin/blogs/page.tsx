@@ -76,7 +76,7 @@ export default function AdminBlogsPage() {
   const [updateBlogStatus] = useUpdateBlogStatusMutation();
   const [deleteBlog] = useDeleteBlogMutation();
 
-  const blogs = data?.data ?? [];
+  const blogs = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredBlogs = useMemo(() => {
     let result = blogs.filter((b) => {

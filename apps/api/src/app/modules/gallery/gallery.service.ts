@@ -1,20 +1,12 @@
 import httpStatus from "http-status";
-import { AccountStatus, ApprovalStatus, Prisma } from "@prisma/client";
+import { ApprovalStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { isUuid, toSlug } from "../../shared/slugHelper";
 import { IJWTPayload } from "../../types";
-
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email, isDeleted: false } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 type CreateGalleryPayload = {
   title: string;
@@ -31,7 +23,7 @@ type CreateGalleryPayload = {
 };
 
 const createGallery = async (user: IJWTPayload, payload: CreateGalleryPayload) => {
-  const creator = await getRequesterDonor(user);
+  const creator = await getActiveActorDonor(user);
   if (payload.organizationId) {
     const org = await prisma.organization.findFirst({
       where: {
@@ -235,7 +227,7 @@ const updateGalleryApproval = async (
   id: string,
   approvalStatus: ApprovalStatus,
 ) => {
-  const reviewer = await getRequesterDonor(user);
+  const reviewer = await getActiveActorDonor(user);
   const existing = await prisma.gallery.findUnique({ where: { id, isDeleted: false } });
   if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Gallery not found!");
   return prisma.gallery.update({

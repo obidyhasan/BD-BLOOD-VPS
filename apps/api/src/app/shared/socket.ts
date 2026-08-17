@@ -44,6 +44,7 @@ export const initSocket = (httpServer: HttpServer) => {
 
       const donor = await prisma.donor.findUnique({
         where: { email: decoded.email, isDeleted: false },
+        select: { id: true, email: true, accountStatus: true },
       });
 
       if (!donor || donor.accountStatus !== AccountStatus.ACTIVE) {

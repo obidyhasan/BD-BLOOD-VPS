@@ -53,7 +53,7 @@ export default function AdminFaqsPage() {
   const [deleteFaq] = useDeleteFaqMutation();
   const [updateFaq] = useUpdateFaqMutation();
 
-  const faqs = data?.data ?? [];
+  const faqs = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredFaqs = useMemo(() => {
     return faqs.filter((faq) => {

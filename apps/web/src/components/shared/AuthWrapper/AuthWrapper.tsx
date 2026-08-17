@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ArrowLeft, Droplets } from "lucide-react";
-import { BDLogo } from "@/components/ui/bd-logo";
 import { motion } from "motion/react";
 import React from "react";
 

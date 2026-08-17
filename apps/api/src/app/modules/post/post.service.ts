@@ -17,6 +17,7 @@ import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
 import { postSearchableFields } from "./post.constant";
 import { isUuid, toSlug } from "../../shared/slugHelper";
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 // Post types that represent a donor sharing their own donation story
 // ("I donated blood"), as opposed to organization-authored broadcast types
@@ -142,17 +143,6 @@ const toPublicPost = <
   return { ...post, donor: publicDonor };
 };
 
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted)
-    throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
-
 const assertCanAssociateWithOrganization = async (
   user: IJWTPayload,
   donorId: string,
@@ -230,7 +220,7 @@ const createPost = async (
   payload: any,
   imageUrls: string[] = [],
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   await assertCanAssociateWithOrganization(
     user,
     donor.id,
@@ -299,7 +289,7 @@ const createPost = async (
 };
 
 const getPostEligibility = async (user: IJWTPayload) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   return prisma.bloodDonation.findMany({
     where: {
       donorId: donor.id,
@@ -323,7 +313,7 @@ const getMyPosts = async (
   params: Record<string, unknown>,
   options: Record<string, unknown>,
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   return getAllPosts({ ...params, donorId: donor.id }, options, false);
 };
 
@@ -526,7 +516,7 @@ const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
 };
 
 const getMyPostBySlug = async (user: IJWTPayload, slug: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const post = await prisma.post.findFirst({
     where: {
       slug,
@@ -576,7 +566,7 @@ const createPostComment = async (
   parentId?: string | null,
   onlyApproved = true,
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const postId = await resolvePostId(slugOrId, onlyApproved);
 
   if (parentId) {
@@ -616,7 +606,7 @@ const createPostComment = async (
 };
 
 const togglePostLike = async (user: IJWTPayload, slugOrId: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const postId = await resolvePostId(slugOrId, true);
 
   const existing = await prisma.postLike.findUnique({
@@ -640,7 +630,7 @@ const updatePost = async (
   payload: any,
   imageUrls: string[] = [],
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.post.findUnique({
     where: { id, isDeleted: false },
@@ -712,7 +702,7 @@ const getOrgManagerContext = async (user: IJWTPayload) => {
   if (user.role === Role.ADMIN)
     return { organizationId: null as string | null, isAdmin: true };
 
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const membership = await prisma.organizationMember.findFirst({
     where: {
       donorId: donor.id,
@@ -878,7 +868,7 @@ const updatePostAdminFields = async (
 };
 
 const deletePost = async (user: IJWTPayload, id: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.post.findUnique({
     where: { id, isDeleted: false },

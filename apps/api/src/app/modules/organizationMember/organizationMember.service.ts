@@ -16,6 +16,7 @@ import {
   canAccessOrganizationDashboard,
 } from "../../middlewares/orgAccess";
 import { IJWTPayload } from "../../types";
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 const NORMAL_DONOR_POSITION_NAME = "Normal Donor";
 
@@ -106,21 +107,11 @@ const isAutoDonorMembership = (membership?: MembershipWithPosition) =>
   membership?.position?.positionName === NORMAL_DONOR_POSITION_NAME &&
   membership.position.positionStatus === PositionStatus.GENERAL;
 
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted) throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
-
 const joinOrganization = async (
   user: IJWTPayload,
   payload: { organizationId: string; positionId: string },
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existingMembership = await prisma.organizationMember.findFirst({
     where: { donorId: donor.id, isDeleted: false },
@@ -175,7 +166,7 @@ const joinOrganization = async (
 };
 
 const getMyMembership = async (user: IJWTPayload) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const membership = await prisma.organizationMember.findFirst({
     where: { donorId: donor.id, isDeleted: false },
     include: {
@@ -522,7 +513,7 @@ const assignOrganizationMember = async (
     );
   }
 
-  const appointingDonor = await getRequesterDonor(user);
+  const appointingDonor = await getActiveActorDonor(user);
   let organizationId: string;
 
   if (user.role === Role.ADMIN) {
@@ -683,7 +674,7 @@ const assignOrganizationMember = async (
 };
 
 const leaveOrganization = async (user: IJWTPayload) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const membership = await prisma.organizationMember.findFirst({
     where: { donorId: donor.id, isDeleted: false },

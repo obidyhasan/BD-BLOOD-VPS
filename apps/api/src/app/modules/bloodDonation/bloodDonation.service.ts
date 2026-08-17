@@ -1,6 +1,5 @@
 import httpStatus from "http-status";
 import {
-  AccountStatus,
   AchievementThresholdType,
   AvailabilityStatus,
   BloodRequestStatus,
@@ -21,26 +20,10 @@ import {
 } from "../../middlewares/orgAccess";
 import { enqueueOutboxEvent, requestEventKey } from "../../shared/messageOutbox";
 import { assertRequestTransition, TransitionConflict } from "../../shared/requestTransitionRules";
-
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({
-    where: { email: user.email },
-  });
-
-  if (!donor) {
-    throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  }
-  if (donor.isDeleted) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  }
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 const createDonation = async (user: IJWTPayload, payload: any) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const donationDate =
     payload.donationDate instanceof Date
       ? payload.donationDate
@@ -217,12 +200,12 @@ const getOrganizationDonations = async (
 };
 
 const getMyDonations = async (user: IJWTPayload, params: IGenericFilters, options: IOptions) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   return getAllDonations({ ...params, donorId: donor.id }, options);
 };
 
 const getSingleDonation = async (user: IJWTPayload, id: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const donation = await prisma.bloodDonation.findUniqueOrThrow({
     where: { id, isDeleted: false },
@@ -251,7 +234,7 @@ const updateDonation = async (
   id: string,
   payload: Prisma.BloodDonationUpdateInput,
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.bloodDonation.findUnique({
     where: { id, isDeleted: false },
@@ -295,7 +278,7 @@ const verifyDonation = async (
   id: string,
   payload: { verificationStatus: VerificationStatus; notes?: string },
 ) => {
-  const verifier = await getRequesterDonor(user);
+  const verifier = await getActiveActorDonor(user);
   const existing = await prisma.bloodDonation.findUnique({
     where: { id, isDeleted: false },
     include: { requestAssignment: { include: { request: true } } },
@@ -516,7 +499,7 @@ const reverseDonation = async (
       "Only Admin can reverse a verified donation.",
     );
   }
-  const actor = await getRequesterDonor(user);
+  const actor = await getActiveActorDonor(user);
   const existing = await prisma.bloodDonation.findUnique({
     where: { id, isDeleted: false },
     include: { requestAssignment: { select: { requestId: true } } },
@@ -669,7 +652,7 @@ const reverseDonation = async (
 };
 
 const deleteDonation = async (user: IJWTPayload, id: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.bloodDonation.findUnique({
     where: { id, isDeleted: false },

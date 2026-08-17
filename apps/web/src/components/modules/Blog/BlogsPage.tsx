@@ -27,7 +27,7 @@ const BlogsPage = ({ initialData }: BlogsPageProps) => {
   const [pageSize, setPageSize] = useState(12);
   const [sortOrder, setSortOrder] = useState("newest");
 
-  const { data, isLoading, isFetching } = useGetPublicBlogsQuery({
+  const { data, isLoading } = useGetPublicBlogsQuery({
     page,
     limit: pageSize,
     searchTerm: searchQuery || undefined,

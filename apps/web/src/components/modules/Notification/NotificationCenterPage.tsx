@@ -8,12 +8,10 @@ import { Button } from "@/components/ui/button";
 import {
   Bell,
   Trash2,
-  CheckCircle2,
   Clock,
   Search,
   ChevronLeft,
   ChevronRight,
-  AlertTriangle,
   History,
   Droplets,
   Building2,
@@ -315,9 +313,6 @@ const NotificationCenterPage = ({
   });
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const highPriorityCount = notifications.filter(
-    (n) => !n.read && n.priority === "high",
-  ).length;
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">

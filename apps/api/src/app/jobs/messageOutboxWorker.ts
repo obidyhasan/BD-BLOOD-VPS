@@ -2,7 +2,6 @@ import { MessageOutboxStatus, Prisma } from "@prisma/client";
 import { smsHelper } from "../helper/smsHelper";
 import { prisma } from "../shared/prisma";
 
-const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 5;
 let running = false;
@@ -33,7 +32,8 @@ export const renderSms = (templateKey: string, payload: Prisma.JsonValue) => {
       .filter((value) => typeof value === "string" && value.trim())
       .join(" - ");
     const patientInformation =
-      typeof data.patientInformation === "string" && data.patientInformation.trim()
+      typeof data.patientInformation === "string" &&
+      data.patientInformation.trim()
         ? ` Patient/request: ${data.patientInformation.trim()}.`
         : "";
     const contact = representative
@@ -53,9 +53,10 @@ export const renderSms = (templateKey: string, payload: Prisma.JsonValue) => {
   }
   throw new Error(`Unsupported SMS outbox template: ${templateKey}`);
 };
-
 const nextRetry = (attempts: number) =>
-  new Date(Date.now() + Math.min(60_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000));
+  new Date(
+    Date.now() + Math.min(60_000 * 2 ** Math.max(attempts - 1, 0), 60 * 60_000),
+  );
 
 export const processMessageOutbox = async () => {
   if (running) return;
@@ -104,9 +105,14 @@ export const processMessageOutbox = async () => {
         await prisma.messageOutbox.update({
           where: { id: event.id },
           data: {
-            status: dead ? MessageOutboxStatus.DEAD : MessageOutboxStatus.FAILED,
+            status: dead
+              ? MessageOutboxStatus.DEAD
+              : MessageOutboxStatus.FAILED,
             nextAttemptAt: nextRetry(event.attempts),
-            lastError: error instanceof Error ? error.message.slice(0, 1_000) : "Unknown outbox error",
+            lastError:
+              error instanceof Error
+                ? error.message.slice(0, 1_000)
+                : "Unknown outbox error",
           },
         });
       }
@@ -114,16 +120,4 @@ export const processMessageOutbox = async () => {
   } finally {
     running = false;
   }
-};
-
-export const startMessageOutboxWorker = () => {
-  const timer = setInterval(() => {
-    void processMessageOutbox().catch((error) =>
-      console.error("[messageOutboxWorker] Sweep failed:", error),
-    );
-  }, POLL_INTERVAL_MS);
-  timer.unref();
-  void processMessageOutbox().catch((error) =>
-    console.error("[messageOutboxWorker] Initial sweep failed:", error),
-  );
 };

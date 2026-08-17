@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
 export default function AuthError({
-  error,
+  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  void _error;
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6 text-center">
       <div className="size-20 rounded-[2rem] bg-red-500/10 text-red-500 flex items-center justify-center">

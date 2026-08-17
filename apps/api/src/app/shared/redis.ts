@@ -48,3 +48,9 @@ export const pingRedis = async (): Promise<{ ok: boolean; message: string }> => 
     return { ok: false, message: (e as Error).message };
   }
 };
+
+export const closeRedis = async (): Promise<void> => {
+  if (!client?.isOpen) return;
+  await client.quit();
+  client = null;
+};

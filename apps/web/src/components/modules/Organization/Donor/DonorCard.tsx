@@ -6,8 +6,6 @@ import {
   Phone,
   Droplets,
   ShieldCheck,
-  Calendar,
-  Info,
   XCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -37,16 +35,6 @@ const DonorCard = ({ donor, index = 0 }: DonorCardProps) => {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-
-  // Months since last donation for eligibility
-  const lastDonation = donor.lastDonationDate
-    ? new Date(donor.lastDonationDate)
-    : null;
-  const monthsSince = lastDonation
-    ? (new Date().getTime() - lastDonation.getTime()) /
-    (1000 * 60 * 60 * 24 * 30)
-    : 999;
-  const eligible = monthsSince >= 3;
 
   return (
     <>

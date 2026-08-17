@@ -14,7 +14,6 @@ import {
   ShieldAlert,
   CheckCircle2,
   XCircle,
-  Loader2,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";

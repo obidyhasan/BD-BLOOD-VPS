@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/immutability */
 "use client";
 
 import Link from "next/link";

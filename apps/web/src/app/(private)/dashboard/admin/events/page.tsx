@@ -110,7 +110,7 @@ export default function AdminEventsPage() {
   const [updateApproval, { isLoading: isReviewing }] =
     useUpdateEventApprovalMutation();
 
-  const events = data?.data ?? [];
+  const events = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredEvents = useMemo(() => {
     let result = events.filter(

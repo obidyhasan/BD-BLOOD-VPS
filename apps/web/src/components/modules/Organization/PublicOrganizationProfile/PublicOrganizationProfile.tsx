@@ -16,8 +16,6 @@ import {
   Zap,
   ArrowUpRight,
   Share2,
-  Globe,
-  Droplets,
 } from "lucide-react";
 import WorkCard from "@/components/modules/Home/OurWork/WorkCard";
 import GalleryCard from "@/components/modules/Gallery/GalleryCard";
@@ -269,7 +267,7 @@ const PublicOrganizationProfile = ({
                   ))
                 ) : (
                   <>
-                    {works.map((work, index) => (
+                    {works.map((work) => (
                       <CarouselItem
                         className="pl-8 sm:basis-1/2 lg:basis-1/3"
                         key={work.id}
@@ -329,7 +327,7 @@ const PublicOrganizationProfile = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
-            {members.map((member, i) => (
+            {members.map((member) => (
               <TeamCard
                 key={member.id}
                 name={member.name}

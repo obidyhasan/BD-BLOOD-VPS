@@ -12,17 +12,8 @@ import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
 import { IGenericFilters } from "../../interfaces/common";
 import { IJWTPayload } from "../../types";
+import { getActiveActorDonor } from "../../shared/actorDonor";
 import { emitDonorNotification } from "../../shared/socket";
-
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted) throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
 
 const createNotification = async (payload: {
   donorId: string;
@@ -56,52 +47,59 @@ const broadcastNotification = async (
     priority?: NotificationPriority;
   },
 ) => {
-  const donors = await prisma.donor.findMany({
-    where: {
+  const batchSize = 500;
+  let cursor: string | undefined;
+  let count = 0;
+
+  // Page through recipients so a system-wide broadcast never materializes
+  // every donor and notification in process memory at once.
+  while (true) {
+    const donors = await prisma.donor.findMany({
+      where: {
+        isDeleted: false,
+        accountStatus: AccountStatus.ACTIVE,
+        role: Role.DONOR,
+      },
+      select: { id: true },
+      orderBy: { id: "asc" },
+      take: batchSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    if (!donors.length) break;
+
+    const now = new Date();
+    const notifications = donors.map((donor) => ({
+      id: randomUUID(),
+      donorId: donor.id,
+      title: payload.title,
+      message: payload.message,
+      type: payload.type,
+      priority: payload.priority ?? NotificationPriority.ROUTINE,
+      relatedId: null as string | null,
+      relatedType: null as string | null,
+      isRead: false,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null as Date | null,
       isDeleted: false,
-      accountStatus: AccountStatus.ACTIVE,
-      role: Role.DONOR,
-    },
-    select: { id: true },
-  });
+    }));
 
-  if (!donors.length) {
-    return { count: 0, notifications: [] };
+    await prisma.notification.createMany({ data: notifications });
+    notifications.forEach((notification) =>
+      emitDonorNotification(notification.donorId, notification),
+    );
+
+    count += notifications.length;
+    cursor = donors[donors.length - 1]?.id;
+    if (donors.length < batchSize) break;
   }
 
-  // Generate ids client-side so we can batch the insert into a single
-  // createMany (one round trip regardless of donor count) instead of N
-  // sequential `create` calls inside a transaction, while still having
-  // each notification's id/content available locally for the socket
-  // fan-out below.
-  const now = new Date();
-  const notifications = donors.map((donor) => ({
-    id: randomUUID(),
-    donorId: donor.id,
-    title: payload.title,
-    message: payload.message,
-    type: payload.type,
-    priority: payload.priority ?? NotificationPriority.ROUTINE,
-    relatedId: null as string | null,
-    relatedType: null as string | null,
-    isRead: false,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null as Date | null,
-    isDeleted: false,
-  }));
-
-  await prisma.notification.createMany({ data: notifications });
-
-  for (const notification of notifications) {
-    emitDonorNotification(notification.donorId, notification);
-  }
-
-  return { count: notifications.length, notifications };
+  return { count };
 };
 
 const getMyNotifications = async (user: IJWTPayload, params: IGenericFilters, options: IOptions) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
 
@@ -130,7 +128,7 @@ const getMyNotifications = async (user: IJWTPayload, params: IGenericFilters, op
 };
 
 const markNotificationRead = async (user: IJWTPayload, id: string, isRead: boolean) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const existing = await prisma.notification.findUnique({
     where: { id, donorId: donor.id, isDeleted: false },
   });
@@ -143,7 +141,7 @@ const markNotificationRead = async (user: IJWTPayload, id: string, isRead: boole
 };
 
 const markAllRead = async (user: IJWTPayload) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   await prisma.notification.updateMany({
     where: { donorId: donor.id, isDeleted: false, isRead: false },
     data: { isRead: true },
@@ -152,7 +150,7 @@ const markAllRead = async (user: IJWTPayload) => {
 };
 
 const deleteNotification = async (user: IJWTPayload, id: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const existing = await prisma.notification.findUnique({
     where: { id, donorId: donor.id, isDeleted: false },
   });

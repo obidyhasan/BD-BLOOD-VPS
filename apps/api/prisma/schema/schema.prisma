@@ -212,6 +212,8 @@ model BloodDonation {
   @@index([organizationId])
   @@index([requestAssignmentId])
   @@index([createdAt])
+  @@index([donorId, isDeleted, createdAt])
+  @@index([donorId, isDeleted, verificationStatus, donationDate])
   @@map("bloodDonations")
 }
 
@@ -537,6 +539,7 @@ model Post {
   @@index([isWork])
   @@index([organizationId, createdAt])
   @@index([approvalStatus, createdAt])
+  @@index([approvalStatus, visibility, isDeleted, createdAt])
   @@map("posts")
 }
 
@@ -758,6 +761,7 @@ model Notification {
   @@index([isRead])
   @@index([type])
   @@index([donorId, createdAt])
+  @@index([donorId, isDeleted, isRead, createdAt])
   @@map("notifications")
 }
 

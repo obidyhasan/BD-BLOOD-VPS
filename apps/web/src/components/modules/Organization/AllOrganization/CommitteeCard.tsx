@@ -18,7 +18,6 @@ const CommitteeCard = ({
   name,
   orgId,
   logo,
-  location,
   members,
   description,
 }: CommitteeCardProps) => {

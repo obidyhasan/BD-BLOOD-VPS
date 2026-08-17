@@ -85,7 +85,7 @@ export default function AdminPoliciesPage() {
   const [deletePolicy] = useDeletePolicyMutation();
   const [updatePolicy] = useUpdatePolicyMutation();
 
-  const policies = data?.data ?? [];
+  const policies = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredPolicies = useMemo(() => {
     return policies.filter((p) => {

@@ -4,9 +4,9 @@ import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  User, Lock, ShieldCheck, Bell,
+  User, ShieldCheck,
   Save, KeyRound, MonitorSmartphone,
-  ShieldAlert, Trash2
+  ShieldAlert,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,17 +17,6 @@ import { useGetMeQuery } from "@/redux/features/auth/authApi";
 import { useUpdateMyProfileMutation } from "@/redux/features/donors/donorsApi";
 import Link from "next/link";
 import AvatarUpload from "@/components/ui/avatar-upload";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 export default function AdminSettingsPage() {
   const { data: meData } = useGetMeQuery();

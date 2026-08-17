@@ -13,7 +13,6 @@ import {
   Eye,
   MapPin,
   Plus,
-  Power,
   Search,
   ShieldCheck,
   ShieldOff,
@@ -190,12 +189,18 @@ export default function AdminOrganizationsPage() {
   const [updateVerification] = useUpdateOrganizationVerificationMutation();
   const [deleteOrganization] = useDeleteOrganizationMutation();
 
-  const orgs = data?.data ?? [];
-  const divisions = divisionsData?.data ?? [];
-  const districts = districtsData?.data ?? [];
-  const upazilas = upazilasData?.data ?? [];
-  const formDistricts = formDistrictsData?.data ?? [];
-  const formUpazilas = formUpazilasData?.data ?? [];
+  const orgs = useMemo(() => data?.data ?? [], [data?.data]);
+  const divisions = useMemo(() => divisionsData?.data ?? [], [divisionsData?.data]);
+  const districts = useMemo(() => districtsData?.data ?? [], [districtsData?.data]);
+  const upazilas = useMemo(() => upazilasData?.data ?? [], [upazilasData?.data]);
+  const formDistricts = useMemo(
+    () => formDistrictsData?.data ?? [],
+    [formDistrictsData?.data],
+  );
+  const formUpazilas = useMemo(
+    () => formUpazilasData?.data ?? [],
+    [formUpazilasData?.data],
+  );
 
   const typeOptions = useMemo(() => {
     const fromApi = orgs.map((org) => org.type).filter(Boolean) as string[];

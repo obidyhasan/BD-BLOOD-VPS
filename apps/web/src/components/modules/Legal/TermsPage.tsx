@@ -3,8 +3,6 @@
 import Link from "next/link";
 import {
   ShieldCheck,
-  FileText,
-  ScrollText,
   AlertCircle,
   Scale,
   Clock,

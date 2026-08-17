@@ -13,7 +13,7 @@ const getInitialState = (): AuthState => {
   try {
     parsedUser =
       userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
-  } catch (error) {
+  } catch {
     parsedUser = null;
   }
 

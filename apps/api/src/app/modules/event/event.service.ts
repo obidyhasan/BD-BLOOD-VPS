@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { AccountStatus, ApprovalStatus, Prisma } from "@prisma/client";
+import { ApprovalStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../shared/prisma";
 import ApiError from "../../errors/ApiError";
 import { paginationHelper, IOptions } from "../../helper/paginationHelper";
@@ -9,17 +9,7 @@ import { eventSearchableFields } from "./event.constant";
 import { isUuid, toSlug } from "../../shared/slugHelper";
 import { assertCanAccessOrganizationDashboard } from "../../middlewares/orgAccess";
 import { assertGeographicHierarchy } from "../../shared/geographicHierarchy";
-
-const getRequesterDonor = async (user: IJWTPayload) => {
-  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-  if (donor.isDeleted)
-    throw new ApiError(httpStatus.BAD_REQUEST, "User is deleted!");
-  if (donor.accountStatus !== AccountStatus.ACTIVE) {
-    throw new ApiError(httpStatus.FORBIDDEN, `User is ${donor.accountStatus}`);
-  }
-  return donor;
-};
+import { getActiveActorDonor } from "../../shared/actorDonor";
 
 const uniqueEventSlug = async (title: string, excludeId?: string) => {
   let base = toSlug(title) || "event";
@@ -39,7 +29,7 @@ const uniqueEventSlug = async (title: string, excludeId?: string) => {
 };
 
 const createEvent = async (user: IJWTPayload, payload: any) => {
-  const creator = await getRequesterDonor(user);
+  const creator = await getActiveActorDonor(user);
   if (user.role !== "ADMIN") {
     await assertCanAccessOrganizationDashboard(user, payload.organizationId);
   }
@@ -261,7 +251,7 @@ const deleteEvent = async (user: IJWTPayload, id: string) => {
 };
 
 const updateEventApproval = async (user: IJWTPayload, id: string, approvalStatus: ApprovalStatus) => {
-  const reviewer = await getRequesterDonor(user);
+  const reviewer = await getActiveActorDonor(user);
   const existing = await prisma.event.findUnique({ where: { id, isDeleted: false } });
   if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Event not found!");
   return prisma.event.update({
@@ -275,7 +265,7 @@ const joinEvent = async (
   eventId: string,
   participationType: any,
 ) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
   const event = await prisma.event.findUnique({
     where: { id: eventId, isDeleted: false, approvalStatus: ApprovalStatus.APPROVED },
   });
@@ -303,7 +293,7 @@ const joinEvent = async (
 };
 
 const leaveEvent = async (user: IJWTPayload, eventId: string) => {
-  const donor = await getRequesterDonor(user);
+  const donor = await getActiveActorDonor(user);
 
   const existing = await prisma.eventParticipant.findUnique({
     where: {

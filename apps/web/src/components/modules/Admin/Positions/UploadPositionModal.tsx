@@ -33,12 +33,10 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  ShieldCheck,
   Plus,
   Loader2,
   Briefcase,
   Users2,
-  Activity,
 } from "lucide-react";
 import {
   useCreatePositionMutation,

@@ -50,8 +50,24 @@ const MedicalPage = ({
     () => (hasLocationFilter ? data?.data ?? [] : initialInstitutions ?? data?.data ?? []).map(mapInstitutionToUI),
     [data, hasLocationFilter, initialInstitutions],
   );
-  const doctors = (hasLocationFilter ? doctorsData?.data ?? [] : initialDoctors ?? doctorsData?.data ?? []) as NonNullable<typeof doctorsData>["data"];
-  const medicalInfos = (hasLocationFilter ? infosData?.data ?? [] : initialMedicalInfos ?? infosData?.data ?? []) as NonNullable<typeof infosData>["data"];
+  const doctors = useMemo(
+    () =>
+      (hasLocationFilter
+        ? doctorsData?.data ?? []
+        : initialDoctors ?? doctorsData?.data ?? []) as NonNullable<
+        typeof doctorsData
+      >["data"],
+    [doctorsData?.data, hasLocationFilter, initialDoctors],
+  );
+  const medicalInfos = useMemo(
+    () =>
+      (hasLocationFilter
+        ? infosData?.data ?? []
+        : initialMedicalInfos ?? infosData?.data ?? []) as NonNullable<
+        typeof infosData
+      >["data"],
+    [hasLocationFilter, infosData?.data, initialMedicalInfos],
+  );
   const pageLoading = !initialInstitutions?.length && loading;
 
   const [searchQuery, setSearchQuery] = useState("");

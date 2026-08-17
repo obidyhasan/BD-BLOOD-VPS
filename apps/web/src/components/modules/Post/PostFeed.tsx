@@ -9,13 +9,9 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
   ClipboardList,
-  Send,
   Grid2X2,
   List,
-  Filter,
   SlidersHorizontal,
-  Users,
-  MapPin,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,7 +24,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -48,18 +43,14 @@ import {
 
 interface PostFeedProps {
   filterAuthor?: string;
-  title?: string;
-  description?: string;
   initialData?: { data?: unknown[]; meta?: object };
 }
 
 export default function PostFeed({
   filterAuthor,
-  title,
-  description,
   initialData,
 }: PostFeedProps) {
-  const { data, isLoading } = useGetPublicPostsQuery(
+  const { data } = useGetPublicPostsQuery(
     {
       limit: 100,
       approvalStatus: "APPROVED",
@@ -68,7 +59,6 @@ export default function PostFeed({
   );
 
   const resolvedData = data ?? initialData;
-  const loading = !resolvedData && isLoading;
 
   const posts: Post[] = useMemo(
     () =>

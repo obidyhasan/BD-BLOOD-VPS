@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { extractErrorMessage } from "@/lib/apiError";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -131,7 +131,10 @@ const UploadEventModal = ({
       skip: !districtId,
     });
 
-  const organizations = organizationsData?.data ?? [];
+  const organizations = useMemo(
+    () => organizationsData?.data ?? [],
+    [organizationsData?.data],
+  );
 
   useEffect(() => {
     if (!organizationId) return;

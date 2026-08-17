@@ -71,7 +71,7 @@ export default function AdminGalleryPage() {
   const [updateApproval, { isLoading: isReviewing }] =
     useUpdateGalleryApprovalMutation();
 
-  const assets = data?.data ?? [];
+  const assets = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredAssets = useMemo(() => {
     let result = assets.filter(

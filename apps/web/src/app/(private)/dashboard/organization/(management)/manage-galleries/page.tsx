@@ -71,7 +71,7 @@ export default function OrganizationGalleryPage() {
   );
   const [deleteGallery] = useDeleteGalleryMutation();
 
-  const assets = data?.data ?? [];
+  const assets = useMemo(() => data?.data ?? [], [data?.data]);
 
   const filteredAssets = useMemo(() => {
     let result = assets.filter(
