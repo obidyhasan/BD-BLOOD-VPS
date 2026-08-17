@@ -2,19 +2,11 @@
 
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import DashboardSearch from "@/components/shared/DashboardSearch/DashboardSearch";
-import {
-  Bell,
-  LayoutGrid,
-  User,
-  Settings,
-  LogOut,
-  ChevronDown,
-} from "lucide-react";
+import { Bell } from "lucide-react";
 import { usePathname } from "next/navigation";
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
@@ -29,6 +21,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useOrganizationDashboardContext } from "@/hooks/useOrganizationDashboardContext";
+import { useGetMyNotificationsQuery } from "@/redux/features/notifications/notificationsApi";
 
 const routeNames: Record<string, string> = {
   "/dashboard/organization": "Overview",
@@ -41,11 +34,13 @@ const routeNames: Record<string, string> = {
   "/dashboard/organization/blogs": "Blogs",
   "/dashboard/organization/events": "Events",
   "/dashboard/organization/members": "All Members",
+  "/dashboard/organization/profile": "Organization Profile",
   "/dashboard/organization/positions": "Positions & Roles",
   "/dashboard/organization/inventory": "Blood Inventory",
   "/dashboard/organization/notifications": "Notifications",
   "/dashboard/organization/donor-query": "Donor Queue",
-  "/dashboard/organization/analytics": "Analytics",
+  "/dashboard/organization/donations": "Donation Verification",
+  "/dashboard/organization/rules-regulations": "Rules & Policies",
 };
 
 export default function OrganizationLayout({
@@ -55,8 +50,13 @@ export default function OrganizationLayout({
 }>) {
   const pathname = usePathname();
   const currentRouteName = routeNames[pathname] || "Overview";
-  const { me, name, organization } = useOrganizationDashboardContext();
+  const { me, name, organization, organizationId } = useOrganizationDashboardContext();
   const orgName = organization?.name;
+  const organizationQuery = organizationId
+    ? `?organizationId=${encodeURIComponent(organizationId)}`
+    : "";
+  const { data: unreadData } = useGetMyNotificationsQuery({ isRead: false, limit: 1 });
+  const unreadCount = unreadData?.meta.total ?? 0;
 
   return (
     <SidebarProvider>
@@ -70,7 +70,7 @@ export default function OrganizationLayout({
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <Link
-                    href="/dashboard/organization"
+                    href={`/dashboard/organization${organizationQuery}`}
                     className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors"
                   >
                     Organization
@@ -96,22 +96,27 @@ export default function OrganizationLayout({
             </div>
 
             <div className="flex items-center gap-2">
-              <Link href="/dashboard/organization/notifications">
+              <Link href={`/dashboard/organization/notifications${organizationQuery}`}>
                 <Button
                   size="icon"
                   variant="outline"
                   className="size-11 rounded-2xl border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 relative"
                 >
                   <Bell className="size-5" />
-                  <span className="absolute top-2 right-2 size-2 bg-primary rounded-full ring-2 ring-white dark:ring-zinc-950" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-2 right-2 size-2 bg-primary rounded-full ring-2 ring-white dark:ring-zinc-950" />
+                  )}
+                  <span className="sr-only">{unreadCount} unread notifications</span>
                 </Button>
               </Link>
 
               <div>
                 <Button
+                  asChild
                   variant="ghost"
                   className="h-11 px-2 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 flex items-center gap-3"
                 >
+                  <Link href={organization?.id ? `/organization/${organization.id}` : "/dashboard/organization"}>
                   <Avatar className="size-9 rounded-xl border border-border/40 shadow-sm">
                     <AvatarImage
                       src={me?.profilePhoto ?? undefined}
@@ -129,6 +134,7 @@ export default function OrganizationLayout({
                       {me?.role ?? "Manager"}
                     </span>
                   </div>
+                  </Link>
                 </Button>
               </div>
             </div>

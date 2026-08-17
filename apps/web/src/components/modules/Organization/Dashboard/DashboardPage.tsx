@@ -4,12 +4,16 @@ import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { SectionCards } from "@/components/section-cards";
 import { DataTable } from "@/components/data-table";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { motion } from "motion/react";
 import { ShieldCheck, Globe, HeartPulse, ArrowUpRight, ShieldAlert, Users, Loader2 } from "lucide-react";
 import DashboardHeader from "@/components/shared/SectionHeader/DashboardHeader";
 import { cn } from "@/lib/utils";
 import {
   useGetOrganizationStatsQuery,
+  useGetActivityFeedQuery,
 } from "@/redux/features/analytics/analyticsApi";
 import { useOrganizationDashboardContext } from "@/hooks/useOrganizationDashboardContext";
 import { useGetAllBloodRequestsQuery } from "@/redux/features/bloodRequests/bloodRequestsApi";
@@ -46,13 +50,17 @@ export default function DashboardPage() {
     orgId ? { organizationId: orgId } : undefined,
     { skip: !orgId },
   );
-  const { data: requestsData, isLoading: requestsLoading } =
+  const { data: requestsData, isLoading: requestsLoading, isError: requestsError, refetch: refetchRequests } =
     useGetAllBloodRequestsQuery(
       orgId
         ? { limit: 30, sortOrder: "desc", organizationId: orgId }
         : { limit: 30, sortOrder: "desc" },
       { skip: !orgId && !isAdmin },
     );
+  const { data: activityData, isError: activityError } = useGetActivityFeedQuery(
+    orgId ? { limit: 10, organizationId: orgId } : undefined,
+    { skip: !orgId },
+  );
 
   const org = organization;
   const stats = statsData?.data;
@@ -89,7 +97,7 @@ export default function DashboardPage() {
       color: "text-red-500",
     },
     {
-      label: "Inventory Units",
+      label: "Available Donors",
       val: String(stats?.inventoryUnits ?? 0),
       icon: ShieldAlert,
       color: "text-amber-500",
@@ -114,7 +122,7 @@ export default function DashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <SectionCards />
+            <SectionCards organizationId={orgId} />
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -124,7 +132,7 @@ export default function DashboardPage() {
               transition={{ delay: 0.3 }}
               className="lg:col-span-8 rounded-[3.5rem] bg-white dark:bg-zinc-900 border border-border/50 shadow-premium"
             >
-              <ChartAreaInteractive />
+              <ChartAreaInteractive organizationId={orgId} />
             </motion.div>
 
             <motion.div
@@ -187,15 +195,38 @@ export default function DashboardPage() {
               <div className="flex justify-center py-12">
                 <Loader2 className="size-8 animate-spin text-primary" />
               </div>
+            ) : requestsError ? (
+              <div className="flex flex-col items-center gap-3 py-12 text-center"><p className="text-sm font-semibold text-destructive">Recent blood requests could not be loaded.</p><button className="text-sm font-semibold text-primary underline" onClick={() => void refetchRequests()}>Try again</button></div>
             ) : (
               <DataTable data={tableData} />
             )}
           </motion.div>
+
+          <section className="space-y-4">
+            <h2 className="px-2 text-2xl font-black uppercase tracking-tighter">Recent activity</h2>
+            <Card className="overflow-hidden rounded-[2.5rem] border-border/40 shadow-none">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader><TableRow><TableHead className="px-8">Date</TableHead><TableHead>Activity</TableHead><TableHead className="px-8 text-right">Status</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {activityError ? (
+                      <TableRow><TableCell colSpan={3} className="p-10 text-center text-sm text-destructive">Activity could not be loaded.</TableCell></TableRow>
+                    ) : (activityData?.data ?? []).length === 0 ? (
+                      <TableRow><TableCell colSpan={3} className="p-10 text-center text-sm text-muted-foreground">No organization activity has been recorded yet.</TableCell></TableRow>
+                    ) : activityData?.data.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="px-8 text-muted-foreground">{item.date}</TableCell>
+                        <TableCell><p className="font-semibold">{item.action}</p><p className="text-xs text-muted-foreground">{item.type}</p></TableCell>
+                        <TableCell className="px-8 text-right"><Badge variant="outline">{item.status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </section>
         </div>
       </div>
     </div>
   );
 }
-
-
-

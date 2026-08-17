@@ -3,9 +3,7 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
@@ -17,17 +15,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
 import { Loader2 } from "lucide-react"
 import { useGetAllBloodRequestsQuery } from "@/redux/features/bloodRequests/bloodRequestsApi"
 
@@ -60,19 +47,23 @@ function buildChartSeries(
 
 const chartConfig = {
   donations: {
-    label: "Donations Received",
+    label: "Fulfilled units",
     color: "hsl(var(--secondary))",
   },
   requests: {
-    label: "Fulfilled Requests",
+    label: "Requests received",
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig
 
-export function ChartAreaInteractive() {
-  const isMobile = useIsMobile()
+export function ChartAreaInteractive({ organizationId }: { organizationId?: string }) {
   const [timeRange, setTimeRange] = React.useState("90d")
-  const { data, isLoading } = useGetAllBloodRequestsQuery({ limit: 500, sortOrder: "desc" });
+  const { data, isLoading } = useGetAllBloodRequestsQuery(
+    organizationId
+      ? { limit: 500, sortOrder: "desc", organizationId }
+      : { limit: 500, sortOrder: "desc" },
+    { skip: !organizationId },
+  );
 
   const filteredData = React.useMemo(() => {
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
@@ -88,9 +79,9 @@ export function ChartAreaInteractive() {
             <Activity className="size-4" />
             Real-time Vitality Insights
           </div> */}
-          <CardTitle className="text-4xl font-black text-foreground tracking-tighter uppercase leading-tight">Impact Velocity</CardTitle>
+          <CardTitle className="text-4xl font-black text-foreground tracking-tighter uppercase leading-tight">Request Activity</CardTitle>
           <CardDescription className="max-w-md font-medium text-muted-foreground opacity-60 leading-relaxed">
-            Analyzing the cadence of global donations against regional medical requirements for the previous quarter cycle.
+            Organization-scoped requests and fulfilled units over the selected period.
           </CardDescription>
         </div>
 
@@ -168,7 +159,7 @@ export function ChartAreaInteractive() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <div className="size-2 bg-[var(--color-donations)] rounded-full shadow-[0_0_8px_rgba(225,29,72,0.5)]" />
-              <span className="text-[10px] font-black uppercase text-muted-foreground ">Donations</span>
+              <span className="text-[10px] font-black uppercase text-muted-foreground ">Fulfilled units</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="size-2 bg-[var(--color-requests)] rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />

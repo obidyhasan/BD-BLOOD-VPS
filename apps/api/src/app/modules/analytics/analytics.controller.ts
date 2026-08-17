@@ -70,10 +70,14 @@ const getPublicStats = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
-const getActivityFeed = catchAsync(async (req: Request, res: Response) => {
+const getActivityFeed = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
   const limit = Number(req.query.limit) || 20;
   const organizationId = req.query.organizationId as string | undefined;
-  const result = await AnalyticsService.getActivityFeed(limit, organizationId);
+  const result = await AnalyticsService.getActivityFeed(
+    limit,
+    req.user as IJWTPayload,
+    organizationId,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

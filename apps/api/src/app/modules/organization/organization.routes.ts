@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
 import auth from "../../middlewares/auth";
-import { orgMemberAccess } from "../../middlewares/orgAccess";
+import { orgManagerAccess, orgMemberAccess } from "../../middlewares/orgAccess";
 import validateRequest from "../../middlewares/validateRequest";
 import { OrganizationController } from "./organization.controller";
 import {
   createOrganizationZodSchema,
   updateOrganizationVerificationZodSchema,
   updateOrganizationZodSchema,
+  updateOrganizationProfileZodSchema,
 } from "./organization.validation";
 
 const router = Router();
@@ -45,6 +46,14 @@ router.get(
   OrganizationController.getAffiliatedDonors,
 );
 router.get("/:id/public-stats", OrganizationController.getPublicStats);
+router.patch(
+  "/:organizationId/profile",
+  auth(Role.ADMIN, Role.DONOR),
+  orgMemberAccess("params"),
+  orgManagerAccess(),
+  validateRequest(updateOrganizationProfileZodSchema),
+  OrganizationController.updateOrganizationProfile,
+);
 router.get("/:id", OrganizationController.getSingleOrganization);
 
 router.patch(

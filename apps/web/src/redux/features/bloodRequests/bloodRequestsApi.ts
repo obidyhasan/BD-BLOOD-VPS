@@ -184,7 +184,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         body: payload,
         headers: { "Idempotency-Key": idempotencyKey },
       }),
-      invalidatesTags: ["BloodRequests"],
+      invalidatesTags: ["BloodRequests", "Analytics"],
     }),
 
     startProcessing: builder.mutation<
@@ -195,7 +195,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         url: `/blood-requests/${id}/start-processing`,
         method: "POST",
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     rejectBloodRequest: builder.mutation<
@@ -207,7 +207,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { reason },
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     cancelBloodRequestCommand: builder.mutation<
@@ -219,7 +219,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { reason },
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     completeHandover: builder.mutation<
@@ -230,7 +230,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         url: `/blood-requests/${id}/complete-handover`,
         method: "POST",
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     getEligibleDonors: builder.query<
@@ -249,7 +249,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         url: `/blood-requests/${id}/assignments`,
         method: "POST",
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     getRequestAssignment: builder.query<
@@ -268,7 +268,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         url: `/blood-requests/assignments/${assignmentId}/accept`,
         method: "PATCH",
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     rejectRequestAssignment: builder.mutation<
@@ -280,7 +280,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: { rejectionReason },
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     withdrawRequestAssignment: builder.mutation<
@@ -292,7 +292,7 @@ export const bloodRequestsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { reason },
       }),
-      invalidatesTags: ["BloodRequests", "Notifications"],
+      invalidatesTags: ["BloodRequests", "Notifications", "Analytics"],
     }),
 
     sendBloodRequestSms: builder.mutation<

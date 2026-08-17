@@ -92,7 +92,7 @@ export const galleryApi = baseApi.injectEndpoints({
       Partial<GalleryItem> & { organizationId?: string; images: string[] }
     >({
       query: (data) => ({ url: "/galleries", method: "POST", body: data }),
-      invalidatesTags: ["Gallery"],
+      invalidatesTags: ["Gallery", "Analytics"],
     }),
 
     updateGallery: builder.mutation<
@@ -104,7 +104,7 @@ export const galleryApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: data,
       }),
-      invalidatesTags: ["Gallery"],
+      invalidatesTags: ["Gallery", "Analytics"],
     }),
 
     updateGalleryApproval: builder.mutation<
@@ -112,7 +112,7 @@ export const galleryApi = baseApi.injectEndpoints({
       { id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" }
     >({
       query: ({ id, approvalStatus }) => ({ url: `/galleries/admin/${id}/approval`, method: "PATCH", body: { approvalStatus } }),
-      invalidatesTags: ["Gallery"],
+      invalidatesTags: ["Gallery", "Analytics"],
     }),
 
     deleteGallery: builder.mutation<
@@ -120,7 +120,7 @@ export const galleryApi = baseApi.injectEndpoints({
       string
     >({
       query: (id) => ({ url: `/galleries/${id}`, method: "DELETE" }),
-      invalidatesTags: ["Gallery"],
+      invalidatesTags: ["Gallery", "Analytics"],
     }),
   }),
 });

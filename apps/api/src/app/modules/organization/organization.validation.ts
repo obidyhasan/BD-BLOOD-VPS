@@ -35,6 +35,14 @@ export const updateOrganizationVerificationZodSchema = z.object({
   verificationStatus: z.nativeEnum(VerificationStatus),
 });
 
+export const updateOrganizationProfileZodSchema = z.object({
+  phone: z.string().min(1).optional(),
+  email: z.string().email().optional().nullable(),
+  address: z.string().min(1).optional(),
+  description: z.string().max(3000).optional().nullable(),
+  logo: z.string().url().optional().nullable(),
+});
+
 export type createOrganizationZodSchemaType = z.infer<
   typeof createOrganizationZodSchema
 >;

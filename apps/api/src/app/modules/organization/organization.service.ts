@@ -592,6 +592,21 @@ const getAffiliatedDonors = async (organizationId: string) => {
   });
 };
 
+const updateOrganizationProfile = async (
+  id: string,
+  payload: Pick<
+    Prisma.OrganizationUpdateInput,
+    "phone" | "email" | "address" | "description" | "logo"
+  >,
+) => {
+  const existing = await prisma.organization.findUnique({
+    where: { id, isDeleted: false },
+    select: { id: true },
+  });
+  if (!existing) throw new ApiError(httpStatus.NOT_FOUND, "Organization not found!");
+  return prisma.organization.update({ where: { id }, data: payload });
+};
+
 const getPublicStats = async (organizationId: string) => {
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId, isDeleted: false },
@@ -647,6 +662,7 @@ export const OrganizationService = {
   getOrganizationBySlug,
   getSingleOrganization,
   updateOrganization,
+  updateOrganizationProfile,
   updateOrganizationVerification,
   deleteOrganization,
 };

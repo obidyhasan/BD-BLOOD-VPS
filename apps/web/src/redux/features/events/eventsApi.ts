@@ -101,7 +101,7 @@ export const eventsApi = baseApi.injectEndpoints({
       { id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" }
     >({
       query: ({ id, approvalStatus }) => ({ url: `/events/admin/${id}/approval`, method: "PATCH", body: { approvalStatus } }),
-      invalidatesTags: ["Events"],
+      invalidatesTags: ["Events", "Analytics"],
     }),
 
     getSingleEvent: builder.query<{ success: boolean; data: Event }, string>({
@@ -128,7 +128,7 @@ export const eventsApi = baseApi.injectEndpoints({
       >
     >({
       query: (data) => ({ url: "/events", method: "POST", body: data }),
-      invalidatesTags: ["Events"],
+      invalidatesTags: ["Events", "Analytics"],
     }),
 
     updateEvent: builder.mutation<
@@ -140,7 +140,7 @@ export const eventsApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: data,
       }),
-      invalidatesTags: ["Events"],
+      invalidatesTags: ["Events", "Analytics"],
     }),
 
     deleteEvent: builder.mutation<
@@ -148,7 +148,7 @@ export const eventsApi = baseApi.injectEndpoints({
       string
     >({
       query: (id) => ({ url: `/events/${id}`, method: "DELETE" }),
-      invalidatesTags: ["Events"],
+      invalidatesTags: ["Events", "Analytics"],
     }),
 
     joinEvent: builder.mutation<
@@ -160,7 +160,7 @@ export const eventsApi = baseApi.injectEndpoints({
         method: "POST",
         body: { participationType: data.participationType },
       }),
-      invalidatesTags: ["Events"],
+      invalidatesTags: ["Events", "Analytics"],
     }),
 
     getEventParticipants: builder.query<

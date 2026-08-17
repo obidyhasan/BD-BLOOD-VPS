@@ -8,6 +8,7 @@ import {
   OrganizationMemberStatus,
   PositionLevel,
   Role,
+  BlogStatus,
 } from "@prisma/client";
 import httpStatus from "http-status";
 import ApiError from "../../errors/ApiError";
@@ -163,7 +164,42 @@ export type ActivityFeedItem = {
 const formatActivityDate = (d: Date) =>
   d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 
-const getActivityFeed = async (limit = 20, organizationId?: string): Promise<ActivityFeedItem[]> => {
+const resolveMemberOrganizationId = async (user: IJWTPayload) => {
+  const donor = await prisma.donor.findUnique({ where: { email: user.email } });
+  if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
+
+  const membership = await prisma.organizationMember.findFirst({
+    where: {
+      donorId: donor.id,
+      status: OrganizationMemberStatus.ACTIVE,
+      isDeleted: false,
+    },
+    include: { position: { select: { level: true } } },
+  });
+  if (!membership?.organizationId) {
+    throw new ApiError(httpStatus.FORBIDDEN, "No active organization membership");
+  }
+  if (
+    membership.position.level !== PositionLevel.EXECUTIVE &&
+    membership.position.level !== PositionLevel.MANAGEMENT
+  ) {
+    throw new ApiError(httpStatus.FORBIDDEN, "Insufficient organization permissions");
+  }
+  return membership.organizationId;
+};
+
+const getActivityFeed = async (
+  limit = 20,
+  user: IJWTPayload,
+  organizationIdFromQuery?: string,
+): Promise<ActivityFeedItem[]> => {
+  // Administrators may deliberately inspect one organization or the global
+  // feed. Organization members are always resolved from authoritative active
+  // membership; a query-string organization ID is never trusted for them.
+  const organizationId =
+    user.role === Role.ADMIN
+      ? organizationIdFromQuery
+      : await resolveMemberOrganizationId(user);
   const take = Math.min(Math.max(limit, 1), 50);
   const events: ActivityFeedItem[] = [];
 
@@ -179,6 +215,7 @@ const getActivityFeed = async (limit = 20, organizationId?: string): Promise<Act
           ? {
               OR: [
                 { organizationId },
+                { handledByOrganizationId: organizationId },
                 {
                   notifications: {
                     some: { organizationId, isDeleted: false },
@@ -417,33 +454,7 @@ const getOrganizationStats = async (
   if (user.role === "ADMIN" && organizationIdFromQuery) {
     organizationId = organizationIdFromQuery;
   } else {
-    const donor = await prisma.donor.findUnique({ where: { email: user.email } });
-    if (!donor) throw new ApiError(httpStatus.NOT_FOUND, "User not found!");
-
-    const membership = await prisma.organizationMember.findFirst({
-      where: {
-        donorId: donor.id,
-        status: OrganizationMemberStatus.ACTIVE,
-        isDeleted: false,
-      },
-      include: { position: { select: { level: true } } },
-    });
-
-    if (!membership?.organizationId) {
-      throw new ApiError(httpStatus.FORBIDDEN, "No active organization membership");
-    }
-
-    if (
-      membership.position.level !== PositionLevel.EXECUTIVE &&
-      membership.position.level !== PositionLevel.MANAGEMENT
-    ) {
-      throw new ApiError(
-        httpStatus.FORBIDDEN,
-        "Insufficient organization permissions",
-      );
-    }
-
-    organizationId = membership.organizationId;
+    organizationId = await resolveMemberOrganizationId(user);
   }
 
   const memberDonorIds = (
@@ -455,7 +466,17 @@ const getOrganizationStats = async (
 
   // `members` count is the same predicate as memberDonorIds above — reuse
   // its length instead of issuing a second, identical COUNT query.
-  const [inventoryUnits, pendingRequests, pendingPosts] = await Promise.all([
+  const [
+    activeDonors,
+    totalRequests,
+    pendingRequests,
+    fulfilledRequests,
+    pendingPosts,
+    organizationPosts,
+    pendingBlogs,
+    pendingEvents,
+    pendingGalleries,
+  ] = await Promise.all([
     prisma.donor.count({
       where: {
         isDeleted: false,
@@ -470,11 +491,24 @@ const getOrganizationStats = async (
         affiliations: { some: { organizationId, active: true } },
       },
     }),
-    prisma.bloodRequestNotification.count({
+    prisma.bloodRequest.count({
       where: {
-        organizationId,
         isDeleted: false,
-        request: { isDeleted: false, status: BloodRequestStatus.PENDING },
+        handledByOrganizationId: organizationId,
+      },
+    }),
+    prisma.bloodRequest.count({
+      where: {
+        isDeleted: false,
+        handledByOrganizationId: organizationId,
+        status: { in: [BloodRequestStatus.PENDING, BloodRequestStatus.PROCESSING] },
+      },
+    }),
+    prisma.bloodRequest.count({
+      where: {
+        isDeleted: false,
+        handledByOrganizationId: organizationId,
+        status: { in: [BloodRequestStatus.FULFILLED, BloodRequestStatus.COMPLETED] },
       },
     }),
     prisma.post.count({
@@ -487,14 +521,23 @@ const getOrganizationStats = async (
         ],
       },
     }),
+    prisma.post.count({ where: { organizationId, isDeleted: false } }),
+    prisma.blog.count({ where: { organizationId, isDeleted: false, status: BlogStatus.PENDING } }),
+    prisma.event.count({ where: { organizationId, isDeleted: false, approvalStatus: ApprovalStatus.PENDING } }),
+    prisma.gallery.count({ where: { organizationId, isDeleted: false, approvalStatus: ApprovalStatus.PENDING } }),
   ]);
 
   return {
     organizationId,
     members: memberDonorIds.length,
-    inventoryUnits,
+    activeDonors,
+    inventoryUnits: activeDonors,
+    totalRequests,
     pendingRequests,
+    fulfilledRequests,
     pendingPosts,
+    organizationPosts,
+    pendingContentApprovals: pendingBlogs + pendingEvents + pendingGalleries,
   };
 };
 

@@ -177,6 +177,19 @@ const getAffiliatedDonors = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateOrganizationProfile = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrganizationService.updateOrganizationProfile(
+    req.params.organizationId,
+    req.body,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Organization public profile updated successfully!",
+    data: result,
+  });
+});
+
 const getPublicStats = catchAsync(async (req: Request, res: Response) => {
   const result = await OrganizationService.getPublicStats(req.params.id);
   sendResponse(res, {
@@ -199,6 +212,7 @@ export const OrganizationController = {
   getOrganizationBySlug,
   getSingleOrganization,
   updateOrganization,
+  updateOrganizationProfile,
   updateOrganizationVerification,
   deleteOrganization,
 };

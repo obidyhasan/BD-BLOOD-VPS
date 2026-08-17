@@ -53,9 +53,14 @@ export interface DonorGrowthStat {
 export interface OrganizationStats {
   organizationId: string;
   members: number;
+  activeDonors: number;
   inventoryUnits: number;
+  totalRequests: number;
   pendingRequests: number;
+  fulfilledRequests: number;
   pendingPosts: number;
+  organizationPosts: number;
+  pendingContentApprovals: number;
 }
 
 export interface OrganizationShortage {

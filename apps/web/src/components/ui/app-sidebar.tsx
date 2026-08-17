@@ -1,13 +1,13 @@
 "use client";
 
 import {
+  Bell,
   Clipboard,
   HeartPlus,
   LayoutDashboard,
-  LayoutList,
+  Newspaper,
   ShieldPlus,
   UserRound,
-  Settings,
 } from "lucide-react";
 
 import { NavMain } from "@/components/ui/nav-main";
@@ -28,20 +28,26 @@ import { useGetMyMembershipQuery } from "@/redux/features/organizations/organiza
 
 const navMain = [
   {
-    title: "Dashboard",
+    title: "Overview",
     url: "/dashboard/organization",
     icon: LayoutDashboard,
-    isActive: true,
+  },
+  {
+    title: "Blood Management",
+    url: "#",
+    icon: HeartPlus,
     items: [
       {
-        title: "Overview",
-        url: "/dashboard/organization",
-      },
-      {
-        title: "Analytics",
-        url: "/dashboard/organization/analytics",
+        title: "Blood Requests",
+        url: "/dashboard/organization/manage-requests",
         managerOnly: true,
       },
+      {
+        title: "Donation Verification",
+        url: "/dashboard/organization/donations",
+        managerOnly: true,
+      },
+      { title: "Blood Inventory", url: "/dashboard/organization/inventory" },
     ],
   },
   {
@@ -49,48 +55,48 @@ const navMain = [
     url: "#",
     icon: ShieldPlus,
     items: [
+      { title: "Donor Directory", url: "/dashboard/organization/donors" },
       {
-        title: "Find Donors",
-        url: "/dashboard/organization/donors",
-      },
-      {
-        title: "Manage Donors",
+        title: "Affiliated Donors",
         url: "/dashboard/organization/manage-donors",
         managerOnly: true,
       },
+      { title: "Donor Queue", url: "/dashboard/organization/donor-query" },
     ],
   },
   {
-    title: "Blood Requests",
+    title: "Organization",
     url: "#",
-    icon: HeartPlus,
+    icon: UserRound,
     items: [
+      { title: "Profile", url: "/dashboard/organization/profile", managerOnly: true },
+      { title: "Members", url: "/dashboard/organization/members" },
       {
-        title: "Manage Requests",
-        url: "/dashboard/organization/manage-requests",
+        title: "Positions & Roles",
+        url: "/dashboard/organization/positions",
         managerOnly: true,
       },
+      { title: "Rules & Policies", url: "/dashboard/organization/rules-regulations" },
     ],
   },
   {
-    title: "Posts",
+    title: "Posts & Activities",
     url: "#",
     icon: Clipboard,
     items: [
+      { title: "Organization Posts", url: "/dashboard/organization/posts" },
       {
-        title: "All Posts",
-        url: "/dashboard/organization/posts",
-      },
-      {
-        title: "Manage Posts",
+        title: "Donor Post Moderation",
         url: "/dashboard/organization/manage-posts",
         managerOnly: true,
       },
-      {
-        title: "Galleries",
-        url: "/dashboard/organization/manage-galleries",
-        managerOnly: true,
-      },
+    ],
+  },
+  {
+    title: "Content",
+    url: "#",
+    icon: Newspaper,
+    items: [
       {
         title: "Blogs",
         url: "/dashboard/organization/blogs",
@@ -101,58 +107,17 @@ const navMain = [
         url: "/dashboard/organization/events",
         managerOnly: true,
       },
-    ],
-  },
-  {
-    title: "Team Members",
-    url: "#",
-    icon: UserRound,
-    items: [
       {
-        title: "All Members",
-        url: "/dashboard/organization/members",
-      },
-      {
-        title: "Positions & Roles",
-        url: "/dashboard/organization/positions",
+        title: "Gallery",
+        url: "/dashboard/organization/manage-galleries",
         managerOnly: true,
       },
     ],
   },
   {
-    title: "Operations",
-    url: "#",
-    icon: LayoutList,
-    items: [
-      {
-        title: "Donation Verification",
-        url: "/dashboard/organization/donations",
-        managerOnly: true,
-      },
-      {
-        title: "Blood Inventory",
-        url: "/dashboard/organization/inventory",
-      },
-      {
-        title: "Notifications",
-        url: "/dashboard/organization/notifications",
-      },
-    ],
-  },
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings,
-    items: [
-      {
-        title: "Donor Queue",
-        url: "/dashboard/organization/donor-query",
-      },
-      {
-        title: "Rules & Regulations",
-        url: "/dashboard/organization/rules-regulations",
-      },
-    ],
+    title: "Notifications",
+    url: "/dashboard/organization/notifications",
+    icon: Bell,
   },
 ];
 

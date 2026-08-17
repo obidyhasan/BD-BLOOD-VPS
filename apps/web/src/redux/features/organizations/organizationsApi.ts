@@ -231,6 +231,24 @@ export const organizationsApi = baseApi.injectEndpoints({
       invalidatesTags: ["Organizations", "OrganizationMembers"],
     }),
 
+    updateOrganizationProfile: builder.mutation<
+      { success: boolean; data: Organization },
+      {
+        id: string;
+        data: Pick<
+          Organization,
+          "phone" | "email" | "address" | "description" | "logo"
+        >;
+      }
+    >({
+      query: ({ id, data }) => ({
+        url: `/organizations/${id}/profile`,
+        method: "PATCH",
+        body: data,
+      }),
+      invalidatesTags: ["Organizations", "Analytics"],
+    }),
+
     registerOrganization: builder.mutation<
       { success: boolean; data: Organization },
       Omit<
@@ -433,6 +451,7 @@ export const {
   useGetOrganizationBySlugQuery,
   useCreateOrganizationMutation,
   useUpdateOrganizationMutation,
+  useUpdateOrganizationProfileMutation,
   useRegisterOrganizationMutation,
   useUpdateOrganizationVerificationMutation,
   useDeleteOrganizationMutation,

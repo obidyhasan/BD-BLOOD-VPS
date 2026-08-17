@@ -111,7 +111,7 @@ export const blogsApi = baseApi.injectEndpoints({
       { title: string; content: string; coverImage?: string; organizationId?: string }
     >({
       query: (data) => ({ url: "/blogs", method: "POST", body: data }),
-      invalidatesTags: ["Blogs"],
+      invalidatesTags: ["Blogs", "Analytics"],
     }),
 
     updateBlog: builder.mutation<
@@ -126,7 +126,7 @@ export const blogsApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: data,
       }),
-      invalidatesTags: ["Blogs"],
+      invalidatesTags: ["Blogs", "Analytics"],
     }),
 
     updateBlogStatus: builder.mutation<
@@ -138,13 +138,13 @@ export const blogsApi = baseApi.injectEndpoints({
         method: "PATCH",
         body: { status },
       }),
-      invalidatesTags: ["Blogs"],
+      invalidatesTags: ["Blogs", "Analytics"],
     }),
 
     deleteBlog: builder.mutation<{ success: boolean; message: string }, string>(
       {
         query: (id) => ({ url: `/blogs/${id}`, method: "DELETE" }),
-        invalidatesTags: ["Blogs"],
+        invalidatesTags: ["Blogs", "Analytics"],
       },
     ),
 

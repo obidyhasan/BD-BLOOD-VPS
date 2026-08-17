@@ -66,6 +66,29 @@ export function NavMain({
             isRouteActive(sub.url),
           );
 
+          if (!item.items?.length) {
+            const isActive = isRouteActive(item.url);
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  className={cn(
+                    "h-12 rounded-2xl border border-transparent px-4 transition-all hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+                    isActive && "border-primary/10 bg-primary/5 text-primary hover:bg-primary/10",
+                  )}
+                >
+                  <Link href={withOrganizationContext(item.url)}>
+                    {item.icon && <item.icon className="size-5 shrink-0" />}
+                    <span className="text-[10px] font-black uppercase group-data-[collapsible=icon]:hidden">
+                      {item.title}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          }
+
           return (
             <Collapsible
               key={item.title}

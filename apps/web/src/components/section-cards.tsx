@@ -1,27 +1,32 @@
 "use client";
 
-import { Users, HeartPulse, Droplets, Clock, Activity, Zap, ShieldCheck, Star } from "lucide-react";
+import { Users, HeartPulse, Droplets, Clock, Activity, Zap, ShieldCheck, Star, BadgeCheck, FileClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
-  Card,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
 
 import { useGetOrganizationStatsQuery } from "@/redux/features/analytics/analyticsApi";
 
-export function SectionCards() {
-  const { data: statsData } = useGetOrganizationStatsQuery();
+export function SectionCards({ organizationId }: { organizationId?: string }) {
+  const { data: statsData, isError, refetch } = useGetOrganizationStatsQuery(
+    organizationId ? { organizationId } : undefined,
+    { skip: !organizationId },
+  );
   const orgStats = statsData?.data;
 
   const counts = {
-    donors: orgStats?.members ?? 0,
+    donors: orgStats?.activeDonors ?? 0,
     requests: orgStats?.pendingRequests ?? 0,
     inventory: orgStats?.inventoryUnits ?? 0,
+    fulfilled: orgStats?.fulfilledRequests ?? 0,
     pendingPosts: orgStats?.pendingPosts ?? 0,
+    pendingContent: orgStats?.pendingContentApprovals ?? 0,
   };
 
   const cardStats = [
@@ -48,11 +53,11 @@ export function SectionCards() {
       glow: "shadow-emerald-500/20"
     },
     {
-      label: "Blood Reserve",
+      label: "Available Donors",
       val: counts.inventory.toString(),
       trend: "Optimal",
       trendIcon: Droplets,
-      sub: "Available blood units",
+      sub: "Eligible affiliated donors",
       icon: Zap,
       color: "text-primary",
       bg: "bg-primary/10",
@@ -68,11 +73,37 @@ export function SectionCards() {
       color: "text-amber-500",
       bg: "bg-amber-500/10",
       glow: "shadow-amber-500/20"
+    },
+    {
+      label: "Fulfilled Requests",
+      val: counts.fulfilled.toString(),
+      trend: "Completed",
+      trendIcon: BadgeCheck,
+      sub: "Fulfilled request lifecycle",
+      icon: BadgeCheck,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      glow: "shadow-blue-500/20"
+    },
+    {
+      label: "Content Approvals",
+      val: counts.pendingContent.toString(),
+      trend: counts.pendingContent > 0 ? "Admin review" : "Clear",
+      trendIcon: FileClock,
+      sub: "Blogs, events and galleries",
+      icon: FileClock,
+      color: "text-violet-500",
+      bg: "bg-violet-500/10",
+      glow: "shadow-violet-500/20"
     }
   ];
 
+  if (isError) {
+    return <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-[2rem] border border-dashed border-destructive/30"><p className="text-sm font-semibold text-destructive">Overview statistics could not be loaded.</p><Button variant="outline" onClick={() => void refetch()}>Try again</Button></div>;
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+    <div className="grid grid-cols-1 gap-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
       {cardStats.map((stat, i) => (
         <motion.div
           key={stat.label}
