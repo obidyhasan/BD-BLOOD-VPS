@@ -8,6 +8,7 @@ const OUTBOX_INTERVAL_MS = 5_000;
 const COOLDOWN_INTERVAL_MS = 10 * 60 * 1_000;
 
 let shuttingDown = false;
+const inFlight = new Set<Promise<void>>();
 
 const runSafely = async (name: string, job: () => Promise<void>) => {
   try {
@@ -17,16 +18,22 @@ const runSafely = async (name: string, job: () => Promise<void>) => {
   }
 };
 
+const schedule = (name: string, job: () => Promise<void>) => {
+  if (shuttingDown) return;
+  const task = runSafely(name, job).finally(() => inFlight.delete(task));
+  inFlight.add(task);
+};
+
 const outboxTimer = setInterval(() => {
-  void runSafely("message outbox", processMessageOutbox);
+  schedule("message outbox", processMessageOutbox);
 }, OUTBOX_INTERVAL_MS);
 
 const cooldownTimer = setInterval(() => {
-  void runSafely("donor cooldown", sweepDonorAvailability);
+  schedule("donor cooldown", sweepDonorAvailability);
 }, COOLDOWN_INTERVAL_MS);
 
-void runSafely("initial message outbox", processMessageOutbox);
-void runSafely("initial donor cooldown", sweepDonorAvailability);
+schedule("initial message outbox", processMessageOutbox);
+schedule("initial donor cooldown", sweepDonorAvailability);
 console.log("BD Blood background worker started.");
 
 const shutdown = async (signal: string) => {
@@ -35,6 +42,7 @@ const shutdown = async (signal: string) => {
   console.log(`[worker] ${signal} received; shutting down.`);
   clearInterval(outboxTimer);
   clearInterval(cooldownTimer);
+  await Promise.allSettled([...inFlight]);
   await prisma.$disconnect().catch((error) =>
     console.error("[worker] Prisma disconnect failed:", error),
   );

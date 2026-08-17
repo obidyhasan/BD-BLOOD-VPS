@@ -13,7 +13,8 @@ bd-blood/
 ├── docs/
 │   └── DEPLOYMENT.md
 ├── docker-compose.yml
-├── .env.example
+├── .env.production.example
+├── HOSTINGER_VPS_DEPLOYMENT.md
 └── package.json — npm workspaces root
 ```
 
@@ -27,9 +28,8 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev          # apps/api + apps/web together
 ```
 
-(The repo-root `.env.example` and each app's `.env.production.example` are
-for the production/Docker deployment — see `docs/DEPLOYMENT.md`. Each
-app's plain `.env.example` is the one to use for local development.)
+(The root `.env.production.example` is the production/Docker template. Each
+app's plain `.env.example` is for local development.)
 
 Individually:
 
@@ -55,15 +55,16 @@ npm run dev:web
 
 ## Production deployment
 
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full VPS/Docker
-deployment guide (Nginx, SSL, Postgres/Redis, backups, rollback).
+See [`HOSTINGER_VPS_DEPLOYMENT.md`](HOSTINGER_VPS_DEPLOYMENT.md) for the full
+VPS/Docker guide and
+[`HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md`](HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md)
+for go-live verification.
 
 ## Architecture notes
 
 - **npm workspaces** manage both apps from one root `package.json` and one
   `package-lock.json` — no Turborepo/pnpm, since there's no shared build
   graph to cache and both apps already used plain npm.
-- No `packages/shared` — neither app has genuinely duplicated code worth
-  extracting (see `docs/DEPLOYMENT.md`'s notes section for why).
-- The backend's notification sweeper runs in-process (`setInterval`); there
-  is no separate worker/queue service.
+- No `packages/shared` — neither app has a shared runtime package.
+- Durable message-outbox and donor-cooldown jobs run in the dedicated worker
+  container; API replicas do not duplicate those timers.

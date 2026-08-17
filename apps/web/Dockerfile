@@ -12,7 +12,9 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm ci
+# The API workspace postinstall needs a Prisma schema that is intentionally
+# absent from this frontend dependency layer. Web does not need that script.
+RUN npm ci --ignore-scripts
 
 # ---- Build ----------------------------------------------------------------
 # NEXT_PUBLIC_* variables are inlined into the client bundle at build time —
@@ -28,6 +30,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN test -n "$NEXT_PUBLIC_API_URL" \
+ && test -n "$NEXT_PUBLIC_SOCKET_URL" \
+ && test -n "$NEXT_PUBLIC_APP_URL"
 
 COPY --from=deps /repo ./
 COPY apps/web ./apps/web
@@ -55,4 +61,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-CMD ["node", "apps/web/server.js"]
+CMD ["sh", "-c", "if [ -z \"$AUTH_COOKIE_DOMAIN\" ] || [ -z \"$INTERNAL_API_URL\" ]; then echo 'AUTH_COOKIE_DOMAIN and INTERNAL_API_URL are required' >&2; exit 1; fi; exec node apps/web/server.js"]

@@ -4,7 +4,15 @@ const parseUrlList = (value?: string) =>
     .map((url) => url.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-export const BACKEND_API_URLS = parseUrlList(process.env.NEXT_PUBLIC_API_URL);
+const publicApiUrls = parseUrlList(process.env.NEXT_PUBLIC_API_URL);
+const internalApiUrls = parseUrlList(process.env.INTERNAL_API_URL);
+
+// Browsers require the public HTTPS hostname. Server-side Next.js work can
+// use Docker DNS directly and avoid an unnecessary public proxy/TLS roundtrip.
+export const BACKEND_API_URLS =
+  typeof window === "undefined" && internalApiUrls.length
+    ? internalApiUrls
+    : publicApiUrls;
 export const BACKEND_API_URL = BACKEND_API_URLS[0] ?? "";
 
 export const SOCKET_URLS = parseUrlList(

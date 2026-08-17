@@ -32,6 +32,86 @@ if (!parsedEnv.success) {
   process.exit(1);
 }
 
+if (process.env.NODE_ENV === "production") {
+  const issues: string[] = [];
+  const requireHttpsUrl = (name: string, value?: string) => {
+    try {
+      if (!value || new URL(value).protocol !== "https:") issues.push(name);
+    } catch {
+      issues.push(name);
+    }
+  };
+  const requireCompleteGroup = (name: string, values: Array<string | undefined>) => {
+    const configured = values.filter((value) => value?.trim()).length;
+    if (configured > 0 && configured < values.length) issues.push(name);
+  };
+
+  if (!process.env.DATABASE_URL?.startsWith("postgresql://")) {
+    issues.push("DATABASE_URL (must be PostgreSQL)");
+  }
+  for (const name of [
+    "JWT_ACCESS_SECRET",
+    "JWT_REFRESH_SECRET",
+    "JWT_PASS_RESET_SECRET",
+    "ADMIN_BOOTSTRAP_SECRET",
+  ] as const) {
+    const value = process.env[name] ?? "";
+    if (value.length < 32 || /change-me|replace-me/i.test(value)) issues.push(name);
+  }
+  if (
+    new Set([
+      process.env.JWT_ACCESS_SECRET,
+      process.env.JWT_REFRESH_SECRET,
+      process.env.JWT_PASS_RESET_SECRET,
+    ]).size !== 3
+  ) {
+    issues.push("JWT secrets (must be distinct)");
+  }
+
+  process.env.FRONTEND_URL?.split(",").forEach((url) =>
+    requireHttpsUrl("FRONTEND_URL", url.trim()),
+  );
+  requireHttpsUrl("RESET_PASSWORD_URL", process.env.RESET_PASSWORD_URL);
+  requireHttpsUrl("VERIFY_EMAIL_URL", process.env.VERIFY_EMAIL_URL);
+  if (!/^\.[A-Za-z0-9.-]+$/.test(process.env.AUTH_COOKIE_DOMAIN ?? "")) {
+    issues.push("AUTH_COOKIE_DOMAIN");
+  }
+  const saltRounds = Number(process.env.BCRYPT_SALT_NUMBER ?? "12");
+  if (!Number.isInteger(saltRounds) || saltRounds < 10) {
+    issues.push("BCRYPT_SALT_NUMBER");
+  }
+
+  requireCompleteGroup("CLOUDINARY_*", [
+    process.env.CLOUDINARY_CLOUD_NAME,
+    process.env.CLOUDINARY_API_KEY,
+    process.env.CLOUDINARY_API_SECRET,
+  ]);
+  requireCompleteGroup("SMTP_*", [
+    process.env.SMTP_HOST,
+    process.env.SMTP_PORT,
+    process.env.SMTP_USER,
+    process.env.SMTP_PASS,
+    process.env.SMTP_FROM,
+  ]);
+  requireCompleteGroup("GOOGLE_*", [
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_CALLBACK_URL,
+  ]);
+  requireCompleteGroup("MIM_SMS_*", [
+    process.env.MIM_SMS_USERNAME,
+    process.env.MIM_SMS_API_KEY,
+    process.env.MIM_SMS_SENDER_NAME,
+  ]);
+
+  if (issues.length) {
+    console.error(
+      `Invalid production environment: ${[...new Set(issues)].join(", ")}.`,
+    );
+    process.exit(1);
+  }
+}
+
 export default {
   node_env: process.env.NODE_ENV,
   port: process.env.PORT || 5000,

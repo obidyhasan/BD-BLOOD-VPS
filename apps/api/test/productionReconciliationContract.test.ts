@@ -76,16 +76,18 @@ test("production messaging fails closed and verifies SMTP certificates", async (
   assert.match(email, /rejectUnauthorized:\s*config\.node_env === "production"/);
 });
 
-test("first-run seeds include achievements and canonical organization hierarchy", async () => {
+test("explicit production seed includes achievements and canonical organization hierarchy", async () => {
   const entrypoint = await read("src/app/seed/seed.ts");
   const server = await read("src/server.ts");
+  const compose = await read("../../docker-compose.yml");
   const achievementSeed = await read("src/app/seed/achievementSeed.ts");
   const organizationSeed = await read("src/app/seed/organizationSeed.ts");
 
-  for (const source of [entrypoint, server]) {
-    assert.match(source, /seedAchievements\(\)/);
-    assert.match(source, /seedCanonicalOrganizations\(\)/);
-  }
+  assert.match(entrypoint, /seedAchievements\(\)/);
+  assert.match(entrypoint, /seedCanonicalOrganizations\(\)/);
+  assert.doesNotMatch(server, /RUN_SEEDS|seedAchievements|seedCanonicalOrganizations/);
+  assert.match(compose, /seed:\s*[\s\S]*profiles:\s*\[tools\]/);
+  assert.match(compose, /command:\s*\["node", "dist\/app\/seed\/seed\.js"\]/);
   assert.match(achievementSeed, /AchievementThresholdType\.VERIFIED_DONATIONS/);
   assert.match(achievementSeed, /thresholdValue:\s*4/);
   assert.match(organizationSeed, /ORGANIZATION_SEED_PHONE/);

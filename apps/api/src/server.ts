@@ -1,25 +1,14 @@
 import { createServer } from "http";
 import app from "./app";
 import config from "./app/config";
-import { seedGeoData } from "./app/seed/geoSeed";
-import { seedBloodGroups } from "./app/seed/bloodGroupSeed";
-import { seedAchievements } from "./app/seed/achievementSeed";
-import { seedCanonicalOrganizations } from "./app/seed/organizationSeed";
-import { initSocket } from "./app/shared/socket";
+import { getIO, initSocket } from "./app/shared/socket";
 import { prisma } from "./app/shared/prisma";
 import { closeRedis } from "./app/shared/redis";
 
 async function bootstrap() {
   let server: ReturnType<typeof createServer>;
+  let shuttingDown = false;
   try {
-    if (process.env.RUN_SEEDS === "true") {
-      const isProd = process.env.NODE_ENV === "production";
-      await seedGeoData(isProd);
-      await seedBloodGroups(isProd);
-      await seedAchievements();
-      await seedCanonicalOrganizations();
-    }
-
     server = createServer(app);
     initSocket(server);
 
@@ -34,11 +23,14 @@ async function bootstrap() {
     // without this every deploy would abruptly drop whatever requests and
     // WebSocket connections happened to be in flight at that moment.
     const gracefulShutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.log(`${signal} received: shutting down gracefully...`);
       if (!server) {
         process.exit(0);
         return;
       }
+      getIO()?.close();
       server.close(async () => {
         try {
           await Promise.all([prisma.$disconnect(), closeRedis()]);

@@ -69,4 +69,6 @@ EXPOSE 5000
 # migrations — never destructive. `prisma` was intentionally moved from
 # devDependencies to dependencies in apps/api/package.json specifically so
 # the CLI survives the `npm prune --omit=dev` above and is available here.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+# Migrations are owned by the one-shot Compose `migrate` service. Keeping
+# application startup separate prevents API replicas racing the same job.
+CMD ["node", "dist/server.js"]

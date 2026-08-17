@@ -11,6 +11,10 @@ import rateLimit from "express-rate-limit";
 
 const app: Application = express();
 
+// The production topology has exactly one trusted proxy hop (Nginx).
+// Configure this before rate limiting so Express resolves the real client IP.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 
 app.use(
@@ -34,7 +38,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 app.use(cookieParser());
-app.set("trust proxy", 1);
 
 // Router
 app.use("/api/v1", router);

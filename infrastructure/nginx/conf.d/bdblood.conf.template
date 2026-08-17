@@ -1,0 +1,73 @@
+# APP_DOMAIN and API_DOMAIN are expanded by the official Nginx entrypoint.
+
+server {
+  listen 80;
+  server_name ${APP_DOMAIN} www.${APP_DOMAIN} ${API_DOMAIN};
+
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name www.${APP_DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
+  include /etc/nginx/snippets/tls.conf;
+
+  return 301 https://${APP_DOMAIN}$request_uri;
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${APP_DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
+  include /etc/nginx/snippets/tls.conf;
+  include /etc/nginx/snippets/security-headers.conf;
+
+  location / {
+    limit_req zone=general burst=40 nodelay;
+    proxy_pass http://web:3000;
+    include /etc/nginx/snippets/proxy.conf;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+  }
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${API_DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
+  include /etc/nginx/snippets/tls.conf;
+  include /etc/nginx/snippets/security-headers.conf;
+
+  location /socket.io/ {
+    proxy_pass http://api:5000;
+    include /etc/nginx/snippets/proxy.conf;
+    proxy_buffering off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+  }
+
+  location / {
+    limit_req zone=general burst=40 nodelay;
+    client_max_body_size 110m;
+    proxy_pass http://api:5000;
+    include /etc/nginx/snippets/proxy.conf;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+  }
+}
