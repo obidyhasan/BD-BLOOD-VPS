@@ -18,9 +18,10 @@ const CommitteeSection = ({ initialPosts = [] }: CommitteeSectionProps) => {
   const query = useGetHomepagePostsQuery(undefined, {
     skip: initialPosts.length > 0,
   });
-  const source = initialPosts.length > 0
-    ? initialPosts
-    : query.data?.data.donorPosts ?? [];
+  const source =
+    initialPosts.length > 0
+      ? initialPosts
+      : (query.data?.data.donorPosts ?? []);
   const posts = source.map((post) => mapApiPostToLegacy(post));
   const loading = initialPosts.length === 0 && query.isLoading;
 
@@ -39,18 +40,25 @@ const CommitteeSection = ({ initialPosts = [] }: CommitteeSectionProps) => {
             variant: "outline",
           }}
         />
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {loading && Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-96 animate-pulse rounded-[2.5rem] bg-zinc-100 dark:bg-zinc-900" />
-          ))}
-          {!loading && !query.isError && posts.map((post) => (
-            <WorkCard key={post.id} post={post} />
-          ))}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading &&
+            Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-96 animate-pulse rounded-[2.5rem] bg-zinc-100 dark:bg-zinc-900"
+              />
+            ))}
+          {!loading &&
+            !query.isError &&
+            posts.map((post) => <WorkCard key={post.id} post={post} />)}
           {query.isError && (
             <div className="col-span-full rounded-[2.5rem] border border-dashed border-red-500/30 py-16 text-center">
               <AlertCircle className="mx-auto mb-3 size-8 text-red-500" />
               <p className="mb-4 font-bold">Donor posts could not be loaded.</p>
-              <Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="mr-2 size-4" />Try again</Button>
+              <Button variant="outline" onClick={() => void query.refetch()}>
+                <RefreshCw className="mr-2 size-4" />
+                Try again
+              </Button>
             </div>
           )}
           {!loading && !query.isError && posts.length === 0 && (
