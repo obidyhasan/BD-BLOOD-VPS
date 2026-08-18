@@ -34,7 +34,7 @@ const routeNames: Record<string, string> = {
   "/dashboard/organization/blogs": "Blogs",
   "/dashboard/organization/events": "Events",
   "/dashboard/organization/members": "All Members",
-  "/dashboard/organization/profile": "Organization Profile",
+  "/dashboard/organization/profile": "Organization Details",
   "/dashboard/organization/positions": "Positions & Roles",
   "/dashboard/organization/inventory": "Blood Inventory",
   "/dashboard/organization/notifications": "Notifications",
@@ -50,12 +50,16 @@ export default function OrganizationLayout({
 }>) {
   const pathname = usePathname();
   const currentRouteName = routeNames[pathname] || "Overview";
-  const { me, name, organization, organizationId } = useOrganizationDashboardContext();
+  const { me, name, organization, organizationId } =
+    useOrganizationDashboardContext();
   const orgName = organization?.name;
   const organizationQuery = organizationId
     ? `?organizationId=${encodeURIComponent(organizationId)}`
     : "";
-  const { data: unreadData } = useGetMyNotificationsQuery({ isRead: false, limit: 1 });
+  const { data: unreadData } = useGetMyNotificationsQuery({
+    isRead: false,
+    limit: 1,
+  });
   const unreadCount = unreadData?.meta.total ?? 0;
 
   return (
@@ -96,7 +100,9 @@ export default function OrganizationLayout({
             </div>
 
             <div className="flex items-center gap-2">
-              <Link href={`/dashboard/organization/notifications${organizationQuery}`}>
+              <Link
+                href={`/dashboard/organization/notifications${organizationQuery}`}
+              >
                 <Button
                   size="icon"
                   variant="outline"
@@ -106,7 +112,9 @@ export default function OrganizationLayout({
                   {unreadCount > 0 && (
                     <span className="absolute top-2 right-2 size-2 bg-primary rounded-full ring-2 ring-white dark:ring-zinc-950" />
                   )}
-                  <span className="sr-only">{unreadCount} unread notifications</span>
+                  <span className="sr-only">
+                    {unreadCount} unread notifications
+                  </span>
                 </Button>
               </Link>
 
@@ -116,24 +124,30 @@ export default function OrganizationLayout({
                   variant="ghost"
                   className="h-11 px-2 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 flex items-center gap-3"
                 >
-                  <Link href={organization?.id ? `/organization/${organization.id}` : "/dashboard/organization"}>
-                  <Avatar className="size-9 rounded-xl border border-border/40 shadow-sm">
-                    <AvatarImage
-                      src={me?.profilePhoto ?? undefined}
-                      alt={name}
-                    />
-                    <AvatarFallback className="rounded-xl font-black text-[10px] bg-primary/10 text-primary">
-                      {name.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden sm:flex flex-col items-start leading-none shrink-0">
-                    <span className="text-xs font-black truncate max-w-[120px]">
-                      {orgName ?? name}
-                    </span>
-                    <span className="text-[10px] font-bold text-muted-foreground opacity-60">
-                      {me?.role ?? "Manager"}
-                    </span>
-                  </div>
+                  <Link
+                    href={
+                      organization?.id
+                        ? `/organization/${organization.id}`
+                        : "/dashboard/organization"
+                    }
+                  >
+                    <Avatar className="size-9 rounded-xl border border-border/40 shadow-sm">
+                      <AvatarImage
+                        src={me?.profilePhoto ?? undefined}
+                        alt={name}
+                      />
+                      <AvatarFallback className="rounded-xl font-black text-[10px] bg-primary/10 text-primary">
+                        {name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden sm:flex flex-col items-start leading-none shrink-0">
+                      <span className="text-xs font-black truncate max-w-[120px]">
+                        {orgName ?? name}
+                      </span>
+                      <span className="text-[10px] font-bold text-muted-foreground opacity-60">
+                        {me?.role ?? "Manager"}
+                      </span>
+                    </div>
                   </Link>
                 </Button>
               </div>

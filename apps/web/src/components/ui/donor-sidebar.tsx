@@ -35,6 +35,7 @@ import {
 import { BDLogo } from "@/components/ui/bd-logo";
 import { NavUser } from "@/components/ui/nav-user";
 import { cn } from "@/lib/utils";
+import { resolveSidebarNavigation } from "@/lib/sidebarNavigation";
 import type { LucideIcon } from "lucide-react";
 
 import { useSessionUser } from "@/hooks/useSessionUser";
@@ -93,16 +94,22 @@ export function DonorSidebar({
   const donorUser = useSessionUser();
   const pathname = usePathname();
   const { data: membershipData } = useGetMyMembershipQuery();
-  const visibleNavItems: DonorNavItem[] = membershipData?.data?.canAccessDashboard
-    ? [
-      ...navItems,
-      {
-        title: "Organization",
-        icon: Building2,
-        url: "/dashboard/organization",
-      },
-    ]
-    : navItems;
+  const canAccessOrganization =
+    membershipData?.data?.status === "ACTIVE" &&
+    !!membershipData.data.organizationId &&
+    membershipData.data.canAccessDashboard === true;
+  const visibleNavItems = resolveSidebarNavigation<DonorNavItem>(
+    canAccessOrganization
+      ? [
+          ...navItems,
+          {
+            title: "Organization",
+            icon: Building2,
+            url: "/dashboard/organization",
+          },
+        ]
+      : navItems,
+  );
 
   return (
     <Sidebar
@@ -142,7 +149,7 @@ export function DonorSidebar({
                 item.items?.some((sub) => isRouteActive(sub.url)) ||
                 isRouteActive(item.url || "");
 
-              if (!item.items) {
+              if (!item.items?.length) {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -152,7 +159,7 @@ export function DonorSidebar({
                         "h-12 rounded-2xl border border-transparent hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all px-4",
                         "group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                         isSectionActive &&
-                        "bg-primary/5 border-primary/10 hover:bg-primary/10",
+                          "bg-primary/5 border-primary/10 hover:bg-primary/10",
                       )}
                     >
                       <Link href={item.url || "#"}>
@@ -200,7 +207,7 @@ export function DonorSidebar({
                           "h-12 rounded-2xl border border-transparent hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all px-4",
                           "group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                           isSectionActive &&
-                          "bg-primary/5 border-primary/10 hover:bg-primary/10",
+                            "bg-primary/5 border-primary/10 hover:bg-primary/10",
                         )}
                       >
                         <item.icon

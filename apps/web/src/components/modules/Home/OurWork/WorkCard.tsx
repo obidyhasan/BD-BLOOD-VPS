@@ -10,7 +10,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { LegacyPost as Post } from "@/lib/post";
+import { getPostPath, type LegacyPost as Post } from "@/lib/post";
 import { cn } from "@/lib/utils";
 
 interface WorkCardProps {
@@ -20,6 +20,8 @@ interface WorkCardProps {
 }
 
 const WorkCard = ({ post, isAdmin, onToggleWork }: WorkCardProps) => {
+  const postPath = getPostPath(post);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -29,7 +31,7 @@ const WorkCard = ({ post, isAdmin, onToggleWork }: WorkCardProps) => {
       className="group bg-white dark:bg-zinc-950 border border-border/40 rounded-[2.5rem] overflow-hidden transition-all duration-300 hover:shadow-premium flex flex-col h-full"
     >
       <div className="relative">
-        <Link href={`/post/${post.id}`} className="block">
+        <Link href={postPath} className="block">
           {/* Visual Media */}
           <div className="relative aspect-16/10 overflow-hidden bg-zinc-100 dark:bg-zinc-900 group/media">
             {post.images && post.images.length > 0 ? (
@@ -102,7 +104,7 @@ const WorkCard = ({ post, isAdmin, onToggleWork }: WorkCardProps) => {
           </div>
         </div>
 
-        <Link href={`/post/${post.id}`} className="block group/title">
+        <Link href={postPath} className="block group/title">
           <h3 className="text-xl font-black text-foreground leading-tight tracking-tight group-hover/title:text-primary transition-colors line-clamp-2">
             {post.title}
           </h3>
@@ -129,7 +131,7 @@ const WorkCard = ({ post, isAdmin, onToggleWork }: WorkCardProps) => {
             </div>
           </div>
           <Link
-            href={`/post/${post.id}`}
+            href={postPath}
             className="text-[10px] font-black uppercase  text-primary hover:tracking-[0.2em] transition-all"
           >
             View Details

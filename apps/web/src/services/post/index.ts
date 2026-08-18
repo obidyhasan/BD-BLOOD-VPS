@@ -3,6 +3,7 @@
 import { serverFetch } from "@/helper/server-fetch";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache";
+import type { Post } from "@/redux/features/posts/postsApi";
 
 export const getHomepagePosts = async () => {
   try {
@@ -35,23 +36,44 @@ export const getPublicPosts = async (
   }
 };
 
-export const getPublicPostBySlug = async (slug: string) => {
+export type PublicPostResult =
+  | { status: "success"; data: Post }
+  | { status: "not-found"; data: null }
+  | { status: "error"; data: null; message: string };
+
+export const getPublicPost = async (
+  identifier: string,
+): Promise<PublicPostResult> => {
   try {
-    const res = await serverFetch.get(`/posts/by-slug/${slug}`);
-    return res.json();
-  } catch {
-    return { success: false, data: null };
+    const res = await serverFetch.get(
+      `/posts/${encodeURIComponent(identifier)}`,
+    );
+    const result = await res.json();
+
+    if (res.status === 404) return { status: "not-found", data: null };
+    if (!res.ok || result.success === false || !result.data) {
+      return {
+        status: "error",
+        data: null,
+        message: result.message || "Unable to load this post right now.",
+      };
+    }
+
+    return { status: "success", data: result.data };
+  } catch (error) {
+    return {
+      status: "error",
+      data: null,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to load this post right now.",
+    };
   }
 };
 
-export const getPublicPostById = async (id: string) => {
-  try {
-    const res = await serverFetch.get(`/posts/${id}`);
-    return res.json();
-  } catch {
-    return { success: false, data: null };
-  }
-};
+export const getPublicPostBySlug = getPublicPost;
+export const getPublicPostById = getPublicPost;
 
 export const getMyPosts = async (
   params?: Record<string, string | number | boolean | undefined>,

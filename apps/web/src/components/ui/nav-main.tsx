@@ -19,6 +19,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { resolveSidebarNavigation } from "@/lib/sidebarNavigation";
 
 export function NavMain({
   items,
@@ -38,10 +39,12 @@ export function NavMain({
   const searchParams = useSearchParams();
   const selectedOrganizationId = searchParams.get("organizationId");
 
+  const resolvedItems = resolveSidebarNavigation(items);
+
   return (
     <SidebarGroup className="px-2">
       <SidebarMenu className="gap-1.5">
-        {items.map((item) => {
+        {resolvedItems.map((item) => {
           const withOrganizationContext = (url: string) => {
             if (
               !selectedOrganizationId ||
@@ -75,7 +78,8 @@ export function NavMain({
                   tooltip={item.title}
                   className={cn(
                     "h-12 rounded-2xl border border-transparent px-4 transition-all hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
-                    isActive && "border-primary/10 bg-primary/5 text-primary hover:bg-primary/10",
+                    isActive &&
+                      "border-primary/10 bg-primary/5 text-primary hover:bg-primary/10",
                   )}
                 >
                   <Link href={withOrganizationContext(item.url)}>
@@ -104,7 +108,7 @@ export function NavMain({
                       "h-12 rounded-2xl border border-transparent hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all px-4",
                       "group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                       isSectionActive &&
-                      "bg-primary/5 border-primary/10 hover:bg-primary/10",
+                        "bg-primary/5 border-primary/10 hover:bg-primary/10",
                     )}
                   >
                     {item.icon && (

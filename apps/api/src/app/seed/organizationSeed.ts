@@ -64,7 +64,10 @@ export const seedCanonicalOrganizations = async () => {
   const expectedCount =
     1 +
     divisions.length +
-    divisions.reduce((count, division) => count + division.districts.length, 0) +
+    divisions.reduce(
+      (count, division) => count + division.districts.length,
+      0,
+    ) +
     divisions.reduce(
       (count, division) =>
         count +
@@ -85,9 +88,17 @@ export const seedCanonicalOrganizations = async () => {
   const phone = organizationPhone();
   const existing = await prisma.organization.findMany({
     where: { canonical: true, isDeleted: false },
-    select: { id: true, level: true, divisionId: true, districtId: true, upazilaId: true },
+    select: {
+      id: true,
+      level: true,
+      divisionId: true,
+      districtId: true,
+      upazilaId: true,
+    },
   });
-  const existingCentral = existing.find((item) => item.level === OrganizationLevel.CENTRAL);
+  const existingCentral = existing.find(
+    (item) => item.level === OrganizationLevel.CENTRAL,
+  );
   const existingDivisionByGeo = new Map(
     existing
       .filter((item) => item.level === OrganizationLevel.DIVISION)
@@ -107,20 +118,23 @@ export const seedCanonicalOrganizations = async () => {
   const centralId = existingCentral?.id ?? deterministicUuid("CENTRAL");
   const centralRows: Prisma.OrganizationCreateManyInput[] = existingCentral
     ? []
-    : [{
-        id: centralId,
-        name: "BD Blood National Organization",
-        phone,
-        address: "Bangladesh",
-        divisionId: firstDivision.id,
-        districtId: firstDistrict.id,
-        upazilaId: firstUpazila.id,
-        level: OrganizationLevel.CENTRAL,
-        canonical: true,
-        description: "National coordination organization for the BD Blood network.",
-        organizationStatus: OrganizationStatus.ACTIVE,
-        verificationStatus: VerificationStatus.VERIFIED,
-      }];
+    : [
+        {
+          id: centralId,
+          name: "BD Blood National Organization",
+          phone,
+          address: "Bangladesh",
+          divisionId: firstDivision.id,
+          districtId: firstDistrict.id,
+          upazilaId: firstUpazila.id,
+          level: OrganizationLevel.CENTRAL,
+          canonical: true,
+          description:
+            "National coordination organization for the BD Blood network.",
+          organizationStatus: OrganizationStatus.ACTIVE,
+          verificationStatus: VerificationStatus.VERIFIED,
+        },
+      ];
   const divisionRows: Prisma.OrganizationCreateManyInput[] = [];
   const districtRows: Prisma.OrganizationCreateManyInput[] = [];
   const upazilaRows: Prisma.OrganizationCreateManyInput[] = [];
@@ -195,14 +209,77 @@ export const seedCanonicalOrganizations = async () => {
     }
   }
 
-  await prisma.$transaction(async (tx) => {
-    if (centralRows.length) await tx.organization.createMany({ data: centralRows });
-    if (divisionRows.length) await tx.organization.createMany({ data: divisionRows });
-    if (districtRows.length) await tx.organization.createMany({ data: districtRows });
-    if (upazilaRows.length) await tx.organization.createMany({ data: upazilaRows });
-  }, { maxWait: 10_000, timeout: 120_000 });
+  await prisma.$transaction(
+    async (tx) => {
+      if (centralRows.length)
+        await tx.organization.createMany({ data: centralRows });
+      if (divisionRows.length)
+        await tx.organization.createMany({ data: divisionRows });
+      if (districtRows.length)
+        await tx.organization.createMany({ data: districtRows });
+      if (upazilaRows.length)
+        await tx.organization.createMany({ data: upazilaRows });
+    },
+    { maxWait: 10_000, timeout: 120_000 },
+  );
+
+  const seededUpazilas = divisions.flatMap((division) =>
+    division.districts.flatMap((district) => district.upazilas),
+  );
+  const organizations = await prisma.organization.findMany({
+    where: {
+      level: OrganizationLevel.UPAZILA,
+      canonical: true,
+      isDeleted: false,
+      upazilaId: { in: seededUpazilas.map((upazila) => upazila.id) },
+    },
+    select: {
+      id: true,
+      divisionId: true,
+      districtId: true,
+      upazilaId: true,
+      upazila: {
+        select: {
+          districtId: true,
+          district: { select: { divisionId: true } },
+        },
+      },
+    },
+  });
+  const organizationsByUpazila = new Map<string, typeof organizations>();
+  for (const organization of organizations) {
+    const rows = organizationsByUpazila.get(organization.upazilaId) ?? [];
+    rows.push(organization);
+    organizationsByUpazila.set(organization.upazilaId, rows);
+  }
+  const divisionByDistrict = new Map(
+    divisions.flatMap((division) =>
+      division.districts.map((district) => [district.id, division.id] as const),
+    ),
+  );
+  const invalidMappings = seededUpazilas.filter((upazila) => {
+    const rows = organizationsByUpazila.get(upazila.id) ?? [];
+    const organization = rows[0];
+    return (
+      rows.length !== 1 ||
+      organization?.districtId !== upazila.districtId ||
+      organization?.divisionId !== divisionByDistrict.get(upazila.districtId) ||
+      organization?.upazila.districtId !== upazila.districtId ||
+      organization?.upazila.district.divisionId !== organization.divisionId
+    );
+  });
+  if (invalidMappings.length) {
+    throw new Error(
+      `Canonical Upazila organization verification failed for ${invalidMappings.length} seeded Upazila(s).`,
+    );
+  }
 
   const created =
-    centralRows.length + divisionRows.length + districtRows.length + upazilaRows.length;
-  console.log(`✅ Canonical organization hierarchy ready (${created} missing nodes created).`);
+    centralRows.length +
+    divisionRows.length +
+    districtRows.length +
+    upazilaRows.length;
+  console.log(
+    `✅ Canonical organization hierarchy ready (${created} missing nodes created).`,
+  );
 };

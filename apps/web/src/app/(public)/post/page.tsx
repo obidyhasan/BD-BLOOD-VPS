@@ -7,6 +7,7 @@ export default async function Page({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const scope = Array.isArray(params.scope) ? params.scope[0] : params.scope;
   const searchTerm = Array.isArray(params.search)
     ? params.search[0]
     : params.search;
@@ -14,6 +15,8 @@ export default async function Page({
   const initialData = await getPublicPosts({
     limit: 100,
     approvalStatus: "APPROVED",
+    postScope:
+      scope === "organization" || scope === "donor" ? scope : undefined,
     searchTerm: searchTerm || undefined,
   });
 

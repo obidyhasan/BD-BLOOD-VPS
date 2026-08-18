@@ -2,11 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Building2, HeartPulse, Home, Hospital, User } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  HeartPulse,
+  Home,
+  Hospital,
+  User,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useGetMyMembershipQuery } from "@/redux/features/organizations/organizationsApi";
 
 const bottomNavItems = [
   { label: "Home", icon: Home, href: "/" },
@@ -20,6 +34,20 @@ export function BottomNav() {
   const pathname = usePathname();
   const sessionUser = useSessionUser();
   const user = sessionUser.me;
+  const {
+    data: membershipData,
+    isLoading: membershipLoading,
+    isFetching: membershipFetching,
+  } = useGetMyMembershipQuery(undefined, {
+    skip: user?.role !== "DONOR",
+  });
+  const isMembershipResolving =
+    user?.role === "DONOR" && (membershipLoading || membershipFetching);
+  const canAccessOrganization =
+    user?.role === "DONOR" &&
+    membershipData?.data?.status === "ACTIVE" &&
+    !!membershipData.data.organizationId &&
+    membershipData.data.canAccessDashboard === true;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[90] lg:hidden">
@@ -29,23 +57,16 @@ export function BottomNav() {
           const Icon = item.icon;
           const href = item.isAccount
             ? user
-              ? `/dashboard/${user.role.toLowerCase()}`
+              ? user.role === "ADMIN"
+                ? "/dashboard/admin/settings"
+                : "/dashboard/donor"
               : "/login"
             : item.href;
           const isActive =
             pathname === href || (href !== "/" && pathname.startsWith(href));
 
-          return (
-            <Link
-              key={item.label}
-              href={href}
-              aria-disabled={item.isAccount && sessionUser.isLoading}
-              onClick={(event) => {
-                if (item.isAccount && sessionUser.isLoading) event.preventDefault();
-              }}
-              className="relative flex h-full flex-1 flex-col items-center justify-center transition-all active:scale-90"
-              aria-label={item.label}
-            >
+          const accountContent = (
+            <>
               <motion.div
                 initial={false}
                 animate={{ scale: isActive ? 1.12 : 1 }}
@@ -83,6 +104,66 @@ export function BottomNav() {
               >
                 {item.label}
               </span>
+            </>
+          );
+
+          if (item.isAccount && canAccessOrganization) {
+            return (
+              <DropdownMenu key={item.label}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative flex h-full flex-1 flex-col items-center justify-center transition-all active:scale-90"
+                    aria-label="Open account menu"
+                  >
+                    {accountContent}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  align="end"
+                  className="w-52 rounded-xl p-1.5"
+                >
+                  <DropdownMenuItem asChild>
+                    <Link href={href} className="flex items-center gap-3">
+                      <User className="size-4" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/dashboard/organization"
+                      className="flex items-center gap-3"
+                    >
+                      <Building2 className="size-4" />
+                      Organization
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          }
+
+          return (
+            <Link
+              key={item.label}
+              href={href}
+              aria-disabled={
+                item.isAccount &&
+                (sessionUser.isLoading || isMembershipResolving)
+              }
+              onClick={(event) => {
+                if (
+                  item.isAccount &&
+                  (sessionUser.isLoading || isMembershipResolving)
+                ) {
+                  event.preventDefault();
+                }
+              }}
+              className="relative flex h-full flex-1 flex-col items-center justify-center transition-all active:scale-90"
+              aria-label={item.label}
+            >
+              {accountContent}
             </Link>
           );
         })}

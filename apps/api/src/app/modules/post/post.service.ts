@@ -29,6 +29,38 @@ const PERSONAL_DONATION_POST_TYPES: PostType[] = [
   PostType.DONATION,
 ];
 
+const activePublicOrganizationWhere: Prisma.OrganizationWhereInput = {
+  isDeleted: false,
+  organizationStatus: "ACTIVE",
+  verificationStatus: VerificationStatus.VERIFIED,
+};
+
+const activePublicDonorWhere: Prisma.DonorWhereInput = {
+  isDeleted: false,
+  accountStatus: AccountStatus.ACTIVE,
+};
+
+const publicPostSourceWhere: Prisma.PostWhereInput = {
+  OR: [
+    {
+      postType: { notIn: PERSONAL_DONATION_POST_TYPES },
+      organization: activePublicOrganizationWhere,
+    },
+    {
+      postType: { in: PERSONAL_DONATION_POST_TYPES },
+      donor: {
+        ...activePublicDonorWhere,
+        affiliations: {
+          some: {
+            active: true,
+            organization: activePublicOrganizationWhere,
+          },
+        },
+      },
+    },
+  ],
+};
+
 const uniquePostSlug = async (title: string, excludeId?: string) => {
   let base = toSlug(title) || "post";
   let slug = base;
@@ -130,9 +162,9 @@ const getRandomPosts = async (
     });
 };
 
-const toPublicPost = <
-  T extends { donor: Record<string, unknown> },
->(post: T) => {
+const toPublicPost = <T extends { donor: Record<string, unknown> }>(
+  post: T,
+) => {
   const {
     email: _email,
     phone: _phone,
@@ -327,31 +359,27 @@ const coerceFilterValue = (key: string, value: unknown): unknown => {
   return value;
 };
 
+const publicPostVisibilityWhere: Prisma.PostWhereInput = {
+  isDeleted: false,
+  approvalStatus: ApprovalStatus.APPROVED,
+  visibility: PostVisibility.PUBLIC,
+  ...publicPostSourceWhere,
+};
+
 const getHomepagePosts = async (successLimit = 6, donorLimit = 8) => {
   const publicBase: Prisma.PostWhereInput = {
     isDeleted: false,
     approvalStatus: ApprovalStatus.APPROVED,
     visibility: PostVisibility.PUBLIC,
-    donor: {
-      isDeleted: false,
-      accountStatus: AccountStatus.ACTIVE,
-    },
   };
 
   const [successHistory, donorPosts] = await Promise.all([
     getRandomPosts(
       {
         ...publicBase,
-        OR: [
-          { donor: { role: Role.ADMIN } },
-          {
-            organization: {
-              isDeleted: false,
-              organizationStatus: "ACTIVE",
-              verificationStatus: VerificationStatus.VERIFIED,
-            },
-          },
-        ],
+        postType: { notIn: PERSONAL_DONATION_POST_TYPES },
+        donor: activePublicDonorWhere,
+        organization: activePublicOrganizationWhere,
       },
       successLimit,
     ),
@@ -360,16 +388,11 @@ const getHomepagePosts = async (successLimit = 6, donorLimit = 8) => {
         ...publicBase,
         postType: { in: PERSONAL_DONATION_POST_TYPES },
         donor: {
-          isDeleted: false,
-          accountStatus: AccountStatus.ACTIVE,
+          ...activePublicDonorWhere,
           affiliations: {
             some: {
               active: true,
-              organization: {
-                isDeleted: false,
-                organizationStatus: "ACTIVE",
-                verificationStatus: VerificationStatus.VERIFIED,
-              },
+              organization: activePublicOrganizationWhere,
             },
           },
         },
@@ -381,17 +404,45 @@ const getHomepagePosts = async (successLimit = 6, donorLimit = 8) => {
   return { successHistory, donorPosts };
 };
 
-const getAllPosts = async (params: IGenericFilters, options: IOptions, onlyApproved = false) => {
+const getAllPosts = async (
+  params: IGenericFilters,
+  options: IOptions,
+  onlyApproved = false,
+) => {
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
-  const { searchTerm, ...filterData } = params as Record<string, string | undefined>;
+  const { searchTerm, postScope, ...filterData } = params as Record<
+    string,
+    string | undefined
+  >;
 
   const andConditions: Prisma.PostWhereInput[] = [{ isDeleted: false }];
+
+  if (postScope === "organization") {
+    andConditions.push({
+      postType: { notIn: PERSONAL_DONATION_POST_TYPES },
+      organization: activePublicOrganizationWhere,
+    });
+  } else if (postScope === "donor") {
+    andConditions.push({
+      postType: { in: PERSONAL_DONATION_POST_TYPES },
+      donor: {
+        ...activePublicDonorWhere,
+        affiliations: {
+          some: {
+            active: true,
+            organization: activePublicOrganizationWhere,
+          },
+        },
+      },
+    });
+  }
 
   if (onlyApproved) {
     andConditions.push({
       approvalStatus: ApprovalStatus.APPROVED,
       visibility: PostVisibility.PUBLIC,
+      ...(postScope ? {} : publicPostSourceWhere),
     });
   }
 
@@ -436,47 +487,23 @@ const getAllPosts = async (params: IGenericFilters, options: IOptions, onlyAppro
 };
 
 const resolvePostId = async (slugOrId: string, onlyApproved: boolean) => {
-  if (isUuid(slugOrId)) return slugOrId;
-
-  const bySlug = await prisma.post.findFirst({
+  const post = await prisma.post.findFirst({
     where: {
-      slug: slugOrId,
-      isDeleted: false,
-      ...(onlyApproved
-        ? {
-            approvalStatus: ApprovalStatus.APPROVED,
-            visibility: PostVisibility.PUBLIC,
-          }
-        : {}),
+      ...(isUuid(slugOrId) ? { id: slugOrId } : { slug: slugOrId }),
+      ...(onlyApproved ? publicPostVisibilityWhere : { isDeleted: false }),
     },
     select: { id: true },
   });
-  if (bySlug) return bySlug.id;
 
-  const posts = await prisma.post.findMany({
-    where: {
-      isDeleted: false,
-      ...(onlyApproved
-        ? {
-            approvalStatus: ApprovalStatus.APPROVED,
-            visibility: PostVisibility.PUBLIC,
-          }
-        : {}),
-    },
-    select: { id: true, title: true },
-  });
-  const match = posts.find((p) => toSlug(p.title) === slugOrId);
-  if (!match) throw new ApiError(httpStatus.NOT_FOUND, "Post not found!");
-  return match.id;
+  if (!post) throw new ApiError(httpStatus.NOT_FOUND, "Post not found!");
+  return post.id;
 };
 
 const getPostBySlug = async (slug: string) => {
   const post = await prisma.post.findFirst({
     where: {
       slug,
-      isDeleted: false,
-      approvalStatus: ApprovalStatus.APPROVED,
-      visibility: PostVisibility.PUBLIC,
+      ...publicPostVisibilityWhere,
     },
     include: {
       donor: { omit: { password: true }, include: { bloodGroup: true } },
@@ -495,16 +522,10 @@ const getPostBySlug = async (slug: string) => {
 const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
   const id = await resolvePostId(slugOrId, onlyApproved);
 
-  const post = await prisma.post.findUniqueOrThrow({
+  const post = await prisma.post.findFirst({
     where: {
       id,
-      isDeleted: false,
-      ...(onlyApproved
-        ? {
-            approvalStatus: ApprovalStatus.APPROVED,
-            visibility: PostVisibility.PUBLIC,
-          }
-        : {}),
+      ...(onlyApproved ? publicPostVisibilityWhere : { isDeleted: false }),
     },
     include: {
       donor: { omit: { password: true }, include: { bloodGroup: true } },
@@ -512,6 +533,8 @@ const getSinglePost = async (slugOrId: string, onlyApproved = false) => {
       _count: { select: { likes: true, comments: true } },
     },
   });
+
+  if (!post) throw new ApiError(httpStatus.NOT_FOUND, "Post not found!");
   return onlyApproved ? toPublicPost(post) : post;
 };
 
@@ -786,7 +809,11 @@ const getAllPostsForOrganization = async (
 
   const { page, limit, skip, sortBy, sortOrder } =
     paginationHelper.calculatePagination(options);
-  const { searchTerm, organizationId: _org, ...filterData } = params as Record<string, string | undefined>;
+  const {
+    searchTerm,
+    organizationId: _org,
+    ...filterData
+  } = params as Record<string, string | undefined>;
 
   const andConditions: Prisma.PostWhereInput[] = [
     { isDeleted: false },

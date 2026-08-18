@@ -34,6 +34,7 @@ import {
 import { BDLogo } from "@/components/ui/bd-logo";
 import { NavUser } from "@/components/ui/nav-user";
 import { cn } from "@/lib/utils";
+import { resolveSidebarNavigation } from "@/lib/sidebarNavigation";
 
 import { useSessionUser } from "@/hooks/useSessionUser";
 
@@ -58,8 +59,14 @@ const navItems = [
     icon: Building2,
     items: [
       { title: "Organizations", url: "/dashboard/admin/organizations" },
-      { title: "Leadership & Members", url: "/dashboard/admin/organization-members" },
-      { title: "Approval Queue", url: "/dashboard/admin/organization-approvals" },
+      {
+        title: "Leadership & Members",
+        url: "/dashboard/admin/organization-members",
+      },
+      {
+        title: "Approval Queue",
+        url: "/dashboard/admin/organization-approvals",
+      },
       { title: "Inventory", url: "/dashboard/admin/inventory" },
       { title: "Positions", url: "/dashboard/admin/positions" },
     ],
@@ -104,6 +111,8 @@ export function AdminSidebar({
   const pathname = usePathname();
   const adminUser = useSessionUser();
 
+  const resolvedNavItems = resolveSidebarNavigation(navItems);
+
   return (
     <Sidebar
       collapsible="icon"
@@ -130,7 +139,7 @@ export function AdminSidebar({
       <SidebarContent className="p-4 space-y-4">
         <SidebarGroup className="px-2 p-0">
           <SidebarMenu className="gap-1.5">
-            {navItems.map((item) => {
+            {resolvedNavItems.map((item) => {
               const isRouteActive = (url: string) => {
                 if (
                   url === "/dashboard/organization" ||
@@ -144,6 +153,30 @@ export function AdminSidebar({
               const isSectionActive = item.items?.some((sub) =>
                 isRouteActive(sub.url),
               );
+              if (!item.items?.length) {
+                const isActive = isRouteActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.title}
+                      className={cn(
+                        "h-12 rounded-2xl border border-transparent px-4 transition-all hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+                        isActive &&
+                          "border-red-500/10 bg-red-500/5 text-red-500 hover:bg-red-500/10",
+                      )}
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="size-5 shrink-0" />
+                        <span className="text-[10px] font-black uppercase group-data-[collapsible=icon]:hidden">
+                          {item.title}
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+
               return (
                 <Collapsible
                   key={item.title}
@@ -159,7 +192,7 @@ export function AdminSidebar({
                           "h-12 rounded-2xl border border-transparent hover:border-border/40 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all px-4",
                           "group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center",
                           isSectionActive &&
-                          "bg-red-500/5 border-red-500/10 hover:bg-red-500/10",
+                            "bg-red-500/5 border-red-500/10 hover:bg-red-500/10",
                         )}
                       >
                         <item.icon

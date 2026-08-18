@@ -26,44 +26,116 @@ export default function OrganizationProfilePage() {
     try {
       await updateProfile({
         id: organizationId,
-        data: { phone, address, email: email || null, description: description || null, logo: logo || null },
+        data: {
+          phone,
+          address,
+          email: email || null,
+          description: description || null,
+          logo: logo || null,
+        },
       }).unwrap();
-      toast.success("Public organization profile updated");
+      toast.success("Public organization details updated");
     } catch {
-      toast.error("Profile update failed. Check the fields and try again.");
+      toast.error("Details update failed. Check the fields and try again.");
     }
   };
 
   return (
     <div className="space-y-8 pb-16">
-      <DashboardHeader title="Organization Profile" subtitle="Maintain public contact details while structural identity remains protected." variant="clinical" />
+      <DashboardHeader
+        title="Organization Details"
+        subtitle="Maintain public contact details while structural identity remains protected."
+        variant="clinical"
+      />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <Card className="rounded-[2.5rem] border-border/40">
-          <CardHeader><CardTitle>Public information</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Public information</CardTitle>
+          </CardHeader>
           <CardContent>
-            <form key={organizationId ?? "loading"} onSubmit={save} className="grid gap-6 sm:grid-cols-2">
+            <form
+              key={organizationId ?? "loading"}
+              onSubmit={save}
+              className="grid gap-6 sm:grid-cols-2"
+            >
               {(["phone", "email", "address", "logo"] as const).map((field) => (
-                <div key={field} className={field === "address" || field === "logo" ? "sm:col-span-2 space-y-2" : "space-y-2"}>
-                  <Label htmlFor={field}>{field === "logo" ? "Logo URL" : field[0].toUpperCase() + field.slice(1)}</Label>
-                  <Input name={field} id={field} type={field === "email" ? "email" : field === "logo" ? "url" : "text"} required={field === "phone" || field === "address"} defaultValue={organization?.[field] ?? ""} />
+                <div
+                  key={field}
+                  className={
+                    field === "address" || field === "logo"
+                      ? "sm:col-span-2 space-y-2"
+                      : "space-y-2"
+                  }
+                >
+                  <Label htmlFor={field}>
+                    {field === "logo"
+                      ? "Logo URL"
+                      : field[0].toUpperCase() + field.slice(1)}
+                  </Label>
+                  <Input
+                    name={field}
+                    id={field}
+                    type={
+                      field === "email"
+                        ? "email"
+                        : field === "logo"
+                          ? "url"
+                          : "text"
+                    }
+                    required={field === "phone" || field === "address"}
+                    defaultValue={organization?.[field] ?? ""}
+                  />
                 </div>
               ))}
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea name="description" id="description" maxLength={3000} rows={7} defaultValue={organization?.description ?? ""} />
+                <Textarea
+                  name="description"
+                  id="description"
+                  maxLength={3000}
+                  rows={7}
+                  defaultValue={organization?.description ?? ""}
+                />
               </div>
-              <div className="sm:col-span-2"><Button type="submit" disabled={isLoading || !organizationId}>{isLoading ? "Saving…" : "Save profile"}</Button></div>
+              <div className="sm:col-span-2">
+                <Button type="submit" disabled={isLoading || !organizationId}>
+                  {isLoading ? "Saving…" : "Save details"}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
         <Card className="h-fit rounded-[2.5rem] border-border/40 bg-muted/30">
-          <CardHeader><CardTitle>Admin-controlled structure</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Admin-controlled structure</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4 text-sm">
-            <p><span className="font-semibold">Name:</span> {organization?.name ?? "—"}</p>
-            <p><span className="font-semibold">Level:</span> {organization?.level ?? "UPAZILA"}</p>
-            <p><span className="font-semibold">Location:</span> {[organization?.upazila?.name, organization?.district?.name, organization?.division?.name].filter(Boolean).join(", ") || "—"}</p>
-            <p><span className="font-semibold">Verification:</span> {organization?.verificationStatus ?? "—"}</p>
-            <p className="text-muted-foreground">Contact Super Admin to change geography, hierarchy, verification, status, organization name, or committee assignments.</p>
+            <p>
+              <span className="font-semibold">Name:</span>{" "}
+              {organization?.name ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold">Level:</span>{" "}
+              {organization?.level ?? "UPAZILA"}
+            </p>
+            <p>
+              <span className="font-semibold">Location:</span>{" "}
+              {[
+                organization?.upazila?.name,
+                organization?.district?.name,
+                organization?.division?.name,
+              ]
+                .filter(Boolean)
+                .join(", ") || "—"}
+            </p>
+            <p>
+              <span className="font-semibold">Verification:</span>{" "}
+              {organization?.verificationStatus ?? "—"}
+            </p>
+            <p className="text-muted-foreground">
+              Contact Super Admin to change geography, hierarchy, verification,
+              status, organization name, or committee assignments.
+            </p>
           </CardContent>
         </Card>
       </div>

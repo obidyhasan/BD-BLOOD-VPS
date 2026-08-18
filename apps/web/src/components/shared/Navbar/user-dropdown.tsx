@@ -5,154 +5,108 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLogout } from "@/hooks/useLogout";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { useGetMyMembershipQuery } from "@/redux/features/organizations/organizationsApi";
-import {
-  Bell,
-  ChevronDown,
-  ClipboardList,
-  Droplets,
-  Fingerprint,
-  LayoutDashboard,
-  LogOut,
-  Settings2,
-  User,
-} from "lucide-react";
+import { Building2, ChevronDown, User } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-
-const donorShortcuts = [
-  { label: "Profile", href: "/dashboard/donor", icon: User },
-  { label: "My Donations", href: "/dashboard/donor/donations", icon: Droplets },
-  {
-    label: "Notifications",
-    href: "/dashboard/donor/notifications",
-    icon: Bell,
-  },
-  { label: "Posts", href: "/dashboard/donor/posts", icon: ClipboardList },
-  { label: "Reports", href: "/dashboard/donor/reports", icon: Fingerprint },
-  { label: "Settings", href: "/dashboard/donor/settings", icon: Settings2 },
-];
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function UserDropdown() {
   const sessionUser = useSessionUser();
   const user = sessionUser.me;
-  const handleLogout = useLogout();
-  const { data: membershipData } = useGetMyMembershipQuery(undefined, {
+  const {
+    data: membershipData,
+    isLoading: membershipLoading,
+    isFetching: membershipFetching,
+  } = useGetMyMembershipQuery(undefined, {
     skip: user?.role !== "DONOR",
   });
 
   if (!user) return null;
 
-  const dashboardUrl = `/dashboard/${user.role.toLowerCase()}`;
+  const profileHref =
+    user.role === "ADMIN" ? "/dashboard/admin/settings" : "/dashboard/donor";
   const firstName = user.fullName?.split(" ")[0] || "User";
-  const donorMenu = membershipData?.data?.canAccessDashboard
-    ? [
-      ...donorShortcuts,
-      {
-        label: "Organization",
-        href: "/dashboard/organization",
-        icon: LayoutDashboard,
-      },
-    ]
-    : donorShortcuts;
-  const shortcuts =
-    user.role === "DONOR"
-      ? donorMenu
-      : [
-        { label: "Dashboard", href: dashboardUrl, icon: LayoutDashboard },
-        {
-          label: "Settings",
-          href: "/dashboard/admin/settings",
-          icon: Settings2,
-        },
-      ];
+  const isMembershipResolving =
+    user.role === "DONOR" && (membershipLoading || membershipFetching);
+  const canAccessOrganization =
+    user.role === "DONOR" &&
+    membershipData?.data?.status === "ACTIVE" &&
+    !!membershipData.data.organizationId &&
+    membershipData.data.canAccessDashboard === true;
+
+  const avatarContent = (showChevron: boolean) => (
+    <>
+      <Avatar className="size-8 border-2 border-primary/20 shadow-sm">
+        <AvatarImage src={user.profilePhoto || ""} alt={user.fullName} />
+        <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
+          {user.fullName?.charAt(0).toUpperCase() || "U"}
+        </AvatarFallback>
+      </Avatar>
+      <span className="hidden max-w-[90px] truncate text-sm font-black text-foreground sm:inline-flex">
+        {firstName}
+      </span>
+      {showChevron && (
+        <ChevronDown className="hidden size-3.5 text-muted-foreground sm:block" />
+      )}
+    </>
+  );
+
+  const avatarButtonClassName =
+    "h-11 rounded-full border border-primary/10 bg-white/60 p-1.5 pr-3 backdrop-blur-sm transition-all hover:border-primary/25 hover:bg-primary/5 dark:bg-zinc-950/60";
+
+  if (isMembershipResolving) {
+    return <Skeleton className="h-11 w-28 rounded-full bg-primary/15" />;
+  }
+
+  if (!canAccessOrganization) {
+    return (
+      <Button asChild variant="ghost" className={avatarButtonClassName}>
+        <Link href={profileHref} aria-label="Open profile">
+          {avatarContent(false)}
+        </Link>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="h-11 rounded-full border border-primary/10 bg-white/60 p-1.5 pr-3 backdrop-blur-sm transition-all hover:border-primary/25 hover:bg-primary/5 dark:bg-zinc-950/60"
+          className={avatarButtonClassName}
+          aria-label="Open account menu"
         >
-          <Avatar className="size-8 border-2 border-primary/20 shadow-sm transition-transform group-hover:scale-105">
-            <AvatarImage src={user.profilePhoto || ""} alt={user.fullName} />
-            <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
-              {user.fullName?.charAt(0).toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <span className="hidden max-w-[90px] truncate text-sm font-black text-foreground sm:inline-flex">
-            {firstName}
-          </span>
-          <ChevronDown className="hidden size-3.5 text-muted-foreground sm:block" />
+          {avatarContent(true)}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="mt-2 w-72 rounded-3xl border-border/40 bg-white p-2 shadow-premium backdrop-blur-2xl dark:bg-zinc-950/95"
+        className="mt-2 w-52 rounded-xl border-border/40 bg-white p-1.5 shadow-lg dark:bg-zinc-950"
         align="end"
-        forceMount
       >
-        <DropdownMenuLabel className="p-3 font-normal">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-11 border border-primary/15">
-              <AvatarImage src={user.profilePhoto || ""} alt={user.fullName} />
-              <AvatarFallback className="bg-primary/10 text-sm font-black text-primary">
-                {user.fullName?.charAt(0).toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black uppercase leading-none tracking-tighter text-foreground">
-                {user.fullName}
-              </p>
-              <p className="mt-1 truncate text-[10px] font-bold leading-none text-muted-foreground">
-                {user.email}
-              </p>
-            </div>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator className="my-2 opacity-40" />
         <DropdownMenuItem
           asChild
-          className="mb-1 h-10 cursor-pointer rounded-xl px-4 focus:bg-primary/5 focus:text-primary"
+          className="h-10 cursor-pointer rounded-lg px-3"
         >
-          <Link href={dashboardUrl} className="flex w-full items-center">
-            <LayoutDashboard className="mr-3 size-4" />
-            <span className="text-[10px] font-black uppercase ">
-              Dashboard
-            </span>
+          <Link href={profileHref} className="flex w-full items-center gap-3">
+            <User className="size-4" />
+            <span className="text-sm font-semibold">Profile</span>
           </Link>
         </DropdownMenuItem>
-        <div className="grid grid-cols-2 gap-1 p-1">
-          {shortcuts.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex flex-col items-center justify-center rounded-2xl border border-transparent p-3 text-center transition-colors hover:border-primary/10 hover:bg-primary/5 hover:text-primary"
-              >
-                <Icon className="mb-1 size-4" />
-                <span className="text-[10px] font-black uppercase leading-tight tracking-tighter">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-        <DropdownMenuSeparator className="my-2 opacity-40" />
         <DropdownMenuItem
-          className="h-10 cursor-pointer rounded-xl bg-red-500/10 px-4 text-red-500 focus:bg-red-500/20 focus:text-red-600"
-          onClick={() => void handleLogout()}
+          asChild
+          className="h-10 cursor-pointer rounded-lg px-3"
         >
-          <LogOut className="mr-3 size-4" />
-          <span className="text-[10px] font-black uppercase ">
-            Log out
-          </span>
+          <Link
+            href="/dashboard/organization"
+            className="flex w-full items-center gap-3"
+          >
+            <Building2 className="size-4" />
+            <span className="text-sm font-semibold">Organization</span>
+          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -8,7 +8,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  useGetPublicPostBySlugQuery,
+  useGetPublicPostByIdQuery,
   useGetMyPostBySlugQuery,
   useTogglePostLikeMutation,
   type Post as ApiPost,
@@ -19,27 +19,38 @@ import { PostCommentsSection } from "@/components/reusable/Donor/PostCommentsSec
 import { PostActions } from "@/components/reusable/Donor/PostActions";
 
 const PostDetail = ({
+  identifier,
   slug,
   initialPost,
+  initialStatus,
+  initialError,
   isPreview = false,
   backHref = "/post",
   backLabel = "← Back to posts",
 }: {
+  identifier?: string;
   slug?: string;
   initialPost?: ApiPost | null;
+  initialStatus?: "success" | "not-found" | "error";
+  initialError?: string;
   isPreview?: boolean;
   backHref?: string;
   backLabel?: string;
 }) => {
-  const publicQuery = useGetPublicPostBySlugQuery(slug ?? "", {
-    skip: !slug || isPreview || !!initialPost,
+  const postIdentifier = identifier ?? slug;
+  const publicQuery = useGetPublicPostByIdQuery(postIdentifier ?? "", {
+    skip:
+      !postIdentifier ||
+      isPreview ||
+      !!initialPost ||
+      initialStatus === "not-found",
   });
-  const previewQuery = useGetMyPostBySlugQuery(slug ?? "", {
+  const previewQuery = useGetMyPostBySlugQuery(postIdentifier ?? "", {
     skip: !slug || !isPreview || !!initialPost,
   });
 
   const activeQuery = isPreview ? previewQuery : publicQuery;
-  const { data, isLoading, isError, refetch } = activeQuery;
+  const { data, isLoading, isError, error, refetch } = activeQuery;
 
   const [toggleLike, { isLoading: liking }] = useTogglePostLikeMutation();
 
@@ -53,9 +64,9 @@ const PostDetail = ({
       toast.info("Likes are available once the post is published");
       return;
     }
-    if (!slug) return;
+    if (!postIdentifier) return;
     try {
-      const res = await toggleLike(slug).unwrap();
+      const res = await toggleLike(postIdentifier).unwrap();
       toast.success(res.data.liked ? "Post liked" : "Like removed");
       refetch();
     } catch (err: unknown) {
@@ -79,7 +90,20 @@ const PostDetail = ({
     );
   }
 
-  if (isError || !post) {
+  const errorMessage = extractErrorMessage(
+    error,
+    initialError || "Unable to load this post right now.",
+  );
+  const isNotFound =
+    (!post && initialStatus === "not-found") ||
+    (!post &&
+      !initialStatus &&
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      (error as { status?: number }).status === 404);
+
+  if (isNotFound || (!isLoading && !post && !isError)) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 mt-28">
         <p className="text-xl font-black uppercase tracking-tighter">
@@ -90,6 +114,26 @@ const PostDetail = ({
             Go Back
           </Button>
         </Link>
+      </div>
+    );
+  }
+
+  if (isError || (!post && initialStatus === "error") || !post) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 mt-28">
+        <p className="text-xl font-black uppercase tracking-tighter">
+          Unable to Load Post
+        </p>
+        <p className="max-w-md text-center text-sm text-muted-foreground">
+          {errorMessage}
+        </p>
+        <Button
+          variant="outline"
+          className="rounded-xl"
+          onClick={() => refetch()}
+        >
+          Try Again
+        </Button>
       </div>
     );
   }
@@ -188,8 +232,11 @@ const PostDetail = ({
             </Button>
           </div>
 
-          {slug && (
-            <PostCommentsSection slug={slug} allowInteraction={canInteract} />
+          {postIdentifier && (
+            <PostCommentsSection
+              slug={postIdentifier}
+              allowInteraction={canInteract}
+            />
           )}
         </motion.div>
       </div>

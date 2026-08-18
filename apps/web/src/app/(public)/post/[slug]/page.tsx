@@ -1,5 +1,5 @@
 import PostDetail from "@/components/modules/Donor/Posts/PostDetail";
-import { getPublicPostBySlug } from "@/services/post";
+import { getPublicPost } from "@/services/post";
 import { buildEntityMetadata, notFoundMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 
@@ -8,15 +8,18 @@ export const generateMetadata = async ({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> => {
-  const { slug } = await params;
-  const post = (await getPublicPostBySlug(slug))?.data;
-  if (!post) return notFoundMetadata("Post");
+  const { slug: identifier } = await params;
+  const result = await getPublicPost(identifier);
+  if (result.status === "not-found") return notFoundMetadata("Post");
+  if (result.status === "error") {
+    return { title: "Post | BD Blood" };
+  }
 
   return buildEntityMetadata({
-    title: post.title,
-    description: post.content,
-    image: post.images?.[0],
-    path: `/post/${post.slug ?? slug}`,
+    title: result.data.title,
+    description: result.data.content,
+    image: result.data.images?.[0],
+    path: `/post/${result.data.slug ?? result.data.id}`,
   });
 };
 
@@ -25,10 +28,15 @@ export default async function Page({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
-  const postRes = await getPublicPostBySlug(slug);
+  const { slug: identifier } = await params;
+  const result = await getPublicPost(identifier);
 
   return (
-    <PostDetail slug={slug} initialPost={postRes?.data ?? null} />
+    <PostDetail
+      identifier={identifier}
+      initialPost={result.status === "success" ? result.data : null}
+      initialStatus={result.status}
+      initialError={result.status === "error" ? result.message : undefined}
+    />
   );
 }

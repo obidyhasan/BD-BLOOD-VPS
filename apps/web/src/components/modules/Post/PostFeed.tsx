@@ -46,16 +46,13 @@ interface PostFeedProps {
   initialData?: { data?: unknown[]; meta?: object };
 }
 
-export default function PostFeed({
-  filterAuthor,
-  initialData,
-}: PostFeedProps) {
+export default function PostFeed({ filterAuthor, initialData }: PostFeedProps) {
   const { data } = useGetPublicPostsQuery(
     {
       limit: 100,
       approvalStatus: "APPROVED",
     },
-    { skip: !!initialData?.data?.length },
+    { skip: initialData !== undefined },
   );
 
   const resolvedData = data ?? initialData;

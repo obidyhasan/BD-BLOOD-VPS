@@ -36,7 +36,7 @@ const CommitteeSection = ({ initialPosts = [] }: CommitteeSectionProps) => {
           subtitle="Approved public donation stories shared by donors across BD Blood organizations."
           button={{
             text: "All Posts",
-            href: "/post",
+            href: "/post?scope=donor",
             variant: "outline",
           }}
         />

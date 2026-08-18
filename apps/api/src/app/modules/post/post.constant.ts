@@ -5,7 +5,7 @@ export const postFilterableFields: string[] = [
   "donorId",
   "organizationId",
   "postType",
+  "postScope",
   "approvalStatus",
   "isWork",
 ];
-

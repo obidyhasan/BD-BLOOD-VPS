@@ -69,14 +69,21 @@ const navMain = [
     url: "#",
     icon: UserRound,
     items: [
-      { title: "Profile", url: "/dashboard/organization/profile", managerOnly: true },
+      {
+        title: "Details",
+        url: "/dashboard/organization/profile",
+        managerOnly: true,
+      },
       { title: "Members", url: "/dashboard/organization/members" },
       {
         title: "Positions & Roles",
         url: "/dashboard/organization/positions",
         managerOnly: true,
       },
-      { title: "Rules & Policies", url: "/dashboard/organization/rules-regulations" },
+      {
+        title: "Rules & Policies",
+        url: "/dashboard/organization/rules-regulations",
+      },
     ],
   },
   {
@@ -127,7 +134,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     skip: user.me?.role === "ADMIN",
   });
   const canManageOrganization =
-    user.me?.role === "ADMIN" || !!membershipData?.data?.canAccessDashboard;
+    user.me?.role === "ADMIN" ||
+    (membershipData?.data?.status === "ACTIVE" &&
+      !!membershipData.data.organizationId &&
+      membershipData.data.canAccessDashboard === true);
   const visibleNavMain = navMain
     .map((section) => ({
       ...section,

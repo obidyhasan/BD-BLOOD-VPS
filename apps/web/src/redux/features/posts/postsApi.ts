@@ -63,6 +63,7 @@ export interface PostQueryParams {
   searchTerm?: string;
   postType?: Post["postType"];
   approvalStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  postScope?: "organization" | "donor";
   organizationId?: string;
   donorId?: string;
   isWork?: boolean;
