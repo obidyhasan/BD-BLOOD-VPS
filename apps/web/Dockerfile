@@ -37,7 +37,12 @@ RUN test -n "$NEXT_PUBLIC_API_URL" \
 
 COPY --from=deps /repo ./
 COPY apps/web ./apps/web
-RUN npm run build --workspace apps/web
+# Docker only ever sends tracked paths in the build context, so a public/
+# directory that is EMPTY in git is silently dropped by the COPY above.
+# Next.js still expects public/ to exist and the runner stage copies it,
+# so materialize it explicitly (a .gitkeep is committed on the repo side
+# to guarantee the directory survives fresh checkouts).
+RUN mkdir -p apps/web/public && npm run build --workspace apps/web
 
 # ---- Runtime ----------------------------------------------------------
 # In an npm-workspaces monorepo, Next's standalone output nests server.js

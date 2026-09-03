@@ -1,0 +1,9 @@
+# Ensures the public/ directory is tracked by git.
+#
+# Git does not track empty directories, and apps/web/public currently has no
+# static assets. Without this file a fresh checkout (e.g. GitHub Actions)
+# has no apps/web/public at all, which breaks the runner-stage COPY in
+# apps/web/Dockerfile ("/repo/apps/web/public": not found). Next.js also
+# expects the directory to exist.
+#
+# Real static assets can be added alongside this file at any time.
