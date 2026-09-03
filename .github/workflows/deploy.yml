@@ -20,13 +20,16 @@ jobs:
     environment: production
     steps:
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          script_stop: true
+          # Building three images (api/web/nginx) plus running migrations and
+          # health checks on the VPS takes well over the default 10m command
+          # timeout, so allow the SSH command to run for up to 30 minutes.
+          command_timeout: 30m
           script: |
             set -e
             REPO_DIR="${VPS_REPO_DIR:-/home/deploy/bd-blood}"
