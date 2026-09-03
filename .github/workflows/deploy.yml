@@ -1,12 +1,13 @@
 name: Deploy Production
 
+# Deploy ONLY after the CI workflow has completed successfully for the same
+# push (docs/CI contract: "a red CI blocks deployment"). The `workflow_run`
+# trigger fires on the CI completion event; we gate on conclusion == success.
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-      - "HOSTINGER_VPS_*.md"
   workflow_dispatch:
 
 concurrency:
@@ -18,8 +19,40 @@ jobs:
     name: Deploy to Hostinger VPS
     runs-on: ubuntu-latest
     environment: production
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
+      # Resolve the commit SHA for both trigger paths.
+      - name: Resolve commit SHA
+        id: sha
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "TAG=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Until a VPS is provisioned and VPS_* secrets are added, pushes must
+      # not fail the pipeline. Secrets can't be read in a job-level `if`, so
+      # gate the SSH step instead.
+      - name: Check VPS secrets configured
+        id: vps
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -n "$VPS_HOST" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip deploy (VPS secrets not configured yet)
+        if: steps.vps.outputs.configured == 'false'
+        run: echo "::notice::VPS secrets not configured — skipping production deploy. Add VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_PORT once the VPS is provisioned."
+
       - name: Deploy over SSH
+        if: steps.vps.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -33,10 +66,17 @@ jobs:
           script: |
             set -e
             REPO_DIR="${VPS_REPO_DIR:-/home/deploy/bd-blood}"
-            TAG="${{ github.sha }}"
+            TAG="${{ steps.sha.outputs.TAG }}"
 
-            echo "==> Refreshing repository on the VPS (commit: $TAG)"
+            echo "==> Ensuring repository exists on the VPS (commit: $TAG)"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              echo "==> First run: cloning repository into $REPO_DIR"
+              mkdir -p "$(dirname "$REPO_DIR")"
+              git clone https://github.com/obidyhasan/BD-BLOOD-VPS.git "$REPO_DIR"
+            fi
+
             cd "$REPO_DIR"
+            echo "==> Refreshing repository on the VPS (commit: $TAG)"
             git fetch --all --prune
             git checkout main
             git reset --hard "$TAG"
