@@ -9,12 +9,16 @@ bd-blood/
 │   ├── web/     — Next.js 16 / React 19 frontend
 │   └── api/     — Express 5 / Prisma 7 / PostgreSQL backend
 ├── infrastructure/
-│   └── nginx/   — reverse proxy config for production
-├── docs/
-│   └── DEPLOYMENT.md
-├── docker-compose.yml
+│   └── nginx/   — reverse proxy (HTTPS, Socket.IO, rate limits)
+├── docs/        — BD_BILAR_WORKFLOW.md, DEPLOYMENT.md
+├── docker-compose.yml          — production service graph (single source)
+├── docker-compose.prod.yml     — thin production wrapper (includes above)
+├── .github/workflows/          — ci.yml, deploy.yml
+├── scripts/                    — deploy/seed/backup/restore helpers
 ├── .env.production.example
 ├── HOSTINGER_VPS_DEPLOYMENT.md
+├── HOSTINGER_VPS_COMMANDS.md
+├── HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md
 └── package.json — npm workspaces root
 ```
 
@@ -46,6 +50,7 @@ npm run dev:web
 | `npm run build`            | Production build, both apps             |
 | `npm run typecheck`        | `tsc --noEmit`, both apps               |
 | `npm run lint`              | ESLint — `apps/web` only (see note below) |
+| `npm run test`             | API unit tests (DB integration tests self-skip) |
 | `npm run api:migrate:deploy` | Apply pending Prisma migrations       |
 | `npm run api:migrate:status` | Check Prisma migration status         |
 | `npm run api:seed`         | Run `apps/api`'s seed scripts directly  |
@@ -55,10 +60,25 @@ npm run dev:web
 
 ## Production deployment
 
-See [`HOSTINGER_VPS_DEPLOYMENT.md`](HOSTINGER_VPS_DEPLOYMENT.md) for the full
-VPS/Docker guide and
-[`HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md`](HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md)
-for go-live verification.
+- [`HOSTINGER_VPS_DEPLOYMENT.md`](HOSTINGER_VPS_DEPLOYMENT.md) — full
+  first-deployment + operations guide (architecture, DNS, SSL, backup,
+  rollback, troubleshooting)
+- [`HOSTINGER_VPS_COMMANDS.md`](HOSTINGER_VPS_COMMANDS.md) — copy/paste command
+  reference (sections A–Q)
+- [`HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md`](HOSTINGER_VPS_DEPLOYMENT_CHECKLIST.md)
+  — go-live verification checklist
+
+Deployment path: push to `main` → GitHub Actions CI → CD SSH → VPS
+`scripts/deploy-production.sh` (migrate → services → healthcheck). The one-shot
+reference seed is `scripts/seed-production.sh`.
+
+## CI/CD
+
+- `.github/workflows/ci.yml` — runs `npm ci`, Prisma validate/generate,
+  typecheck, lint, API tests and production Docker builds on every PR/push.
+- `.github/workflows/deploy.yml` — on push to `main`, SSHes to the Hostinger
+  VPS and runs the same `scripts/deploy-production.sh` path used for the first
+  deployment. Requires the GitHub Secrets listed in the deployment docs.
 
 ## Architecture notes
 

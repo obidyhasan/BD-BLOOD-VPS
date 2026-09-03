@@ -1,0 +1,20 @@
+# Production Compose wrapper for BD Blood on a Hostinger VPS.
+#
+# BD Blood's single source of truth for the production service graph lives in
+# docker-compose.yml (repo root). This file is intentionally a THIN, explicit
+# wrapper that reuses that graph so there is exactly ONE production
+# deployment path and no second competing Compose definition to drift.
+#
+# Usage (from the repo root on the VPS):
+#   export COMPOSE_PROJECT_NAME=bdblood
+#   docker compose --env-file .env.production -f docker-compose.prod.yml config   # validate
+#   docker compose --env-file .env.production -f docker-compose.prod.yml build
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+#
+# Safety: named volumes (postgres_data, redis_data, certbot_*) are the ONLY
+# persistence used. Routine updates never use `down -v`.
+
+name: ${COMPOSE_PROJECT_NAME:-bdblood}
+
+include:
+  - path: docker-compose.yml
